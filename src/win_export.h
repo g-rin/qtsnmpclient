@@ -4,9 +4,9 @@
     #undef WIN_EXPORT
 #endif
 
-#ifdef BUILD_SNMPCLIENT_DLL
+#ifdef BUILD_QTSNMPCLIENT_DLL
     #define WIN_EXPORT Q_DECL_EXPORT
-#elif defined( IMPORT_SNMPCLIENT_DLL )
+#elif defined( IMPORT_QTSNMPCLIENT_DLL )
     #define WIN_EXPORT Q_DECL_IMPORT
 #else
     #define WIN_EXPORT

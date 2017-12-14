@@ -1,4 +1,4 @@
-NAME=snmpclient
+NAME=qtsnmpclient
 LIBS *= -l$${NAME}
 win32 : !static : DEFINES *= IMPORT_$$upper($${NAME})_DLL
 INCLUDEPATH *= $${PWD}/include
