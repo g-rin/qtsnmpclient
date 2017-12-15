@@ -57,6 +57,7 @@ QHostAddress Session::agentAddress() const {
 void Session::setAgentAddress( const QHostAddress& value ) {
     bool ok = !value.isNull();
     ok = ok && !value.isMulticast();
+    ok = ok && ( QHostAddress( QHostAddress::Any ) != value );
     if( ok ) {
         m_agent_address = value;
         m_socket->close();
