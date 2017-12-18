@@ -1,6 +1,7 @@
 #include "QtSnmpData.h"
 #include <QHostAddress>
 #include <cassert>
+#include <math.h>
 
 namespace {
 
