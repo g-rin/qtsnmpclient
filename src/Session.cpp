@@ -6,6 +6,7 @@
 #include "defines.h"
 #include <QDateTime>
 #include <QHostAddress>
+#include <math.h>
 
 namespace qtsnmpclient {
 
