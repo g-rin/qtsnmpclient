@@ -141,14 +141,14 @@ void Session::startNextWork() {
 }
 
 void Session::completeWork( const QtSnmpDataList& values ) {
-    assert( ! m_current_work.isNull() );
+    Q_ASSERT( ! m_current_work.isNull() );
     emit responseReceived( m_current_work->id(), values );
     m_current_work.clear();
     startNextWork();
 }
 
 void Session::cancelWork() {
-    assert( ! m_current_work.isNull() );
+    Q_ASSERT( ! m_current_work.isNull() );
     emit requestFailed( m_current_work->id() );
     m_response_wait_timer->stop();
     m_request_id = -1;
@@ -157,7 +157,7 @@ void Session::cancelWork() {
 }
 
 void Session::sendRequestGetValues( const QStringList& names ) {
-    assert( -1 == m_request_id );
+    Q_ASSERT( -1 == m_request_id );
     if( -1 == m_request_id ) {
         updateRequestId();
         QtSnmpData full_packet = QtSnmpData::sequence();
@@ -183,7 +183,7 @@ void Session::sendRequestGetValues( const QStringList& names ) {
 }
 
 void Session::sendRequestGetNextValue( const QString& name ) {
-    assert( -1 == m_request_id );
+    Q_ASSERT( -1 == m_request_id );
     if( -1 == m_request_id ) {
         updateRequestId();
         QtSnmpData full_packet = QtSnmpData::sequence();
@@ -211,7 +211,7 @@ void Session::sendRequestSetValue( const QByteArray& community,
                                    const int type,
                                    const QByteArray& value )
 {
-    assert( -1 == m_request_id );
+    Q_ASSERT( -1 == m_request_id );
     if( -1 == m_request_id ) {
         updateRequestId();
         auto pdu_packet = QtSnmpData::sequence();
@@ -241,7 +241,7 @@ void Session::onReadyRead() {
         datagram.resize( size );
         m_socket->readDatagram( datagram.data(), size );
 
-        assert( !m_current_work.isNull() );
+        Q_ASSERT( !m_current_work.isNull() );
         if( ! m_current_work.isNull() ) {
             const auto& list = getResponseData( datagram );
             m_current_work->processData( list );
@@ -252,33 +252,33 @@ void Session::onReadyRead() {
 QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
     QtSnmpDataList result;
     const auto list = QtSnmpData::parseData( datagram );
-    assert( !list.isEmpty() );
+    Q_ASSERT( !list.isEmpty() );
     for( const auto& packet : list ) {
         const QtSnmpDataList resp_list = packet.children();
         if( 3 == resp_list.count() ) {
             const auto& resp = resp_list.at( 2 );
-            assert( QtSnmpData::GET_RESPONSE_TYPE == resp.type() );
+            Q_ASSERT( QtSnmpData::GET_RESPONSE_TYPE == resp.type() );
             if( QtSnmpData::GET_RESPONSE_TYPE != resp.type() ) {
                 qWarning() << Q_FUNC_INFO << "Err: unexpected response type";
                 return result;
             }
 
             const auto& children = resp.children();
-            assert( 4 == children.count() );
+            Q_ASSERT( 4 == children.count() );
             if( 4 != children.count() ) {
                 qWarning() << Q_FUNC_INFO << "Err: unexpected child count";
                 return result;
             }
 
             const auto& request_id_data = children.at( 0 );
-            assert( QtSnmpData::INTEGER_TYPE == request_id_data.type() );
+            Q_ASSERT( QtSnmpData::INTEGER_TYPE == request_id_data.type() );
             if( QtSnmpData::INTEGER_TYPE != request_id_data.type() ) {
                 qWarning() << Q_FUNC_INFO << "Err: request id type";
                 return result;
             }
 
             const int response_req_id = request_id_data.intValue();
-            assert( response_req_id == m_request_id );
+            Q_ASSERT( response_req_id == m_request_id );
             if( response_req_id == m_request_id ) {
                 m_response_wait_timer->stop();
                 m_request_id = -1;
@@ -290,14 +290,14 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
             }
 
             const auto& error_state_data = children.at( 1 );
-            assert( QtSnmpData::INTEGER_TYPE == error_state_data.type() );
+            Q_ASSERT( QtSnmpData::INTEGER_TYPE == error_state_data.type() );
             if( QtSnmpData::INTEGER_TYPE != error_state_data.type() ) {
                 qWarning() << Q_FUNC_INFO << "Err: unexpected error state type";
                 return result;
             }
 
             const auto& error_index_data = children.at( 2 );
-            assert( QtSnmpData::INTEGER_TYPE == error_index_data.type() );
+            Q_ASSERT( QtSnmpData::INTEGER_TYPE == error_index_data.type() );
             if( QtSnmpData::INTEGER_TYPE != error_index_data.type() ) {
                 qWarning() << Q_FUNC_INFO << "Err: unexpected error index type";
                 return result;
@@ -315,7 +315,7 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
             }
 
             const auto& variable_list_data = children.at( 3 );
-            assert( QtSnmpData::SEQUENCE_TYPE == variable_list_data.type() );
+            Q_ASSERT( QtSnmpData::SEQUENCE_TYPE == variable_list_data.type() );
             if( QtSnmpData::SEQUENCE_TYPE != variable_list_data.type() ) {
                 qWarning() << Q_FUNC_INFO << "Err: unexpected variable list type";
                 return result;
@@ -354,10 +354,10 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
 
 void Session::sendDatagram( const QByteArray& datagram ) {
     if( m_socket->writeDatagram( datagram, m_agent_address, SnmpPort ) ) {
-        assert( ! m_response_wait_timer->isActive() );
+        Q_ASSERT( ! m_response_wait_timer->isActive() );
         m_response_wait_timer->start();
     } else {
-        assert( false );
+        Q_ASSERT( false );
         cancelWork();
     }
 }

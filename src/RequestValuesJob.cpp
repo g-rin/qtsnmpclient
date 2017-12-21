@@ -1,6 +1,5 @@
 #include "RequestValuesJob.h"
 #include "Session.h"
-#include <cassert>
 
 namespace qtsnmpclient {
 

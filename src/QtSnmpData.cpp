@@ -1,6 +1,5 @@
 #include "QtSnmpData.h"
 #include <QHostAddress>
-#include <cassert>
 #include <math.h>
 
 namespace {
@@ -10,7 +9,7 @@ namespace {
 
     QByteArray getOid( const QByteArray& data ) {
         QByteArray result;
-        assert( data.size() > 0 );
+        Q_ASSERT( data.size() > 0 );
         if( data.size() > 0 ) {
             if( FIRST_BYTE == data.at( 0 ) ) {
                 result = ISO_ORG_OID;
@@ -22,7 +21,7 @@ namespace {
                     while( cur_val >= 0x80 ) {
                         big_val *= 0x80;
                         big_val += ( cur_val - 0x80 );
-                        assert( current_index < data.size() );
+                        Q_ASSERT( current_index < data.size() );
                         if( current_index < data.size() ) {
                             cur_val = static_cast< quint8 >( data.at( current_index ) );
                             ++current_index;
@@ -68,7 +67,7 @@ namespace {
         const int size = oid.count();
         bool ok = (size > prefix_size);
         ok = ok && ( 0 == oid.indexOf( ISO_ORG_OID ) );
-        assert( ok );
+        Q_ASSERT( ok );
         if( ok ) {
             result.append( FIRST_BYTE );
             int pos = prefix_size + 1;
@@ -308,7 +307,7 @@ QByteArray QtSnmpData::makeSnmpChunk() const {
             if( 0x7f < first_byte ) {
                 chunk.prepend( 1, 0x00 );
             }
-            assert( chunk.count() <= 127 );
+            Q_ASSERT( chunk.count() <= 127 );
             const char count = static_cast< char >( chunk.count() );
             chunk.prepend( 1, count );
             chunk.prepend( 1, static_cast< char >( m_type ) );
@@ -377,18 +376,18 @@ QList< QtSnmpData > QtSnmpData::parseData( const QByteArray& data ) { // static
     QList< QtSnmpData > result;
     QByteArray parsed_data( data );
     while( parsed_data.size() ) {
-        assert( parsed_data.size() >= 2 );
+        Q_ASSERT( parsed_data.size() >= 2 );
         if( parsed_data.size() >= 2 ) {
             int data_length = static_cast< quint8 >( parsed_data.at( 1 ) );
             int size_lengh = 1;
             if( data_length > 0x80 ) {
                 size_lengh = 1 + (data_length - 0x80);
-                assert( parsed_data.size() > size_lengh );
+                Q_ASSERT( parsed_data.size() > size_lengh );
                 if( parsed_data.size() > size_lengh ) {
                     auto length_data = parsed_data.mid( 2, size_lengh - 1 );
                     const int sizeof_int = static_cast< int >( sizeof(int) );
                     const int leading_zeros_count = sizeof_int - length_data.size();
-                    assert( leading_zeros_count >= 0 );
+                    Q_ASSERT( leading_zeros_count >= 0 );
                     if( leading_zeros_count > 0 ) {
                         length_data.insert( 0, QByteArray( leading_zeros_count, 0 ) );
                     }
@@ -401,7 +400,7 @@ QList< QtSnmpData > QtSnmpData::parseData( const QByteArray& data ) { // static
 
             const int type_lenght = 1;
             const auto packet_size = type_lenght + size_lengh + data_length;
-            assert( parsed_data.size() >= packet_size );
+            Q_ASSERT( parsed_data.size() >= packet_size );
             if( parsed_data.size() >= packet_size ) {
                 const int type = static_cast< quint8 >( parsed_data.at( 0 ) );
                 const auto data = parsed_data.mid( type_lenght + size_lengh, data_length );

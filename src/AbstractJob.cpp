@@ -1,6 +1,5 @@
 #include "AbstractJob.h"
 #include "Session.h"
-#include <cassert>
 
 namespace qtsnmpclient {
 
@@ -9,8 +8,8 @@ AbstractJob::AbstractJob( Session*const session,
     : m_session( session )
     , m_id( id )
 {
-    assert( session );
-    assert( m_id > 0 );
+    Q_ASSERT( session );
+    Q_ASSERT( m_id > 0 );
 }
 
 AbstractJob::~AbstractJob() {

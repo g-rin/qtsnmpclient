@@ -6,7 +6,6 @@
 #include <QtCore/QDebug>
 #include <QtCore/QMetaMethod>
 #include <QtCore/QStringList>
-#include <cassert>
 
 #define _pushZero(...) e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,0
 #define _impl_VA_NUM_ARGS_(_1,_2,_3,_4,_5,_6,_7,_8,_9,_a,_b,_c,_d,_e,_f,_N,...) _N
@@ -120,7 +119,7 @@ template < typename T > inline QGenericReturnArgument ads_qrarg( const T& ) {
                                         this, \
                                         connection, \
                                         _int_QRARG_EXPAND(  preInvokeStatement) QARG_EXPAND(__VA_ARGS__));\
-            assert( invokeResult );\
+            Q_ASSERT( invokeResult );\
             returnStatement; \
         }\
     } while(false)
