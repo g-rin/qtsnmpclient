@@ -241,9 +241,9 @@ void Session::onReadyRead() {
         datagram.resize( size );
         m_socket->readDatagram( datagram.data(), size );
 
-        Q_ASSERT( !m_current_work.isNull() );
-        if( ! m_current_work.isNull() ) {
-            const auto& list = getResponseData( datagram );
+        const auto& list = getResponseData( datagram );
+        if( !list.isEmpty() ) {
+            Q_ASSERT( !m_current_work.isNull() );
             m_current_work->processData( list );
         }
     }
