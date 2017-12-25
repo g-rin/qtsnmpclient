@@ -148,11 +148,12 @@ void Session::completeWork( const QtSnmpDataList& values ) {
 }
 
 void Session::cancelWork() {
-    Q_ASSERT( ! m_current_work.isNull() );
-    emit requestFailed( m_current_work->id() );
+    if( !m_current_work.isNull() ) {
+        emit requestFailed( m_current_work->id() );
+        m_current_work.clear();
+    }
     m_response_wait_timer->stop();
     m_request_id = -1;
-    m_current_work.clear();
     startNextWork();
 }
 
