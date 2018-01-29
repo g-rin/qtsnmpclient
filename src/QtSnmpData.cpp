@@ -142,7 +142,7 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
             if( real_size < expected_size ) {
                 m_data = data;
                 const int size_diff = static_cast< int >( expected_size - real_size );
-                m_data.insert( 0, size_diff, 0 );
+                m_data.prepend( QByteArray( size_diff, '\x0' ) );
             } else {
                 m_data = data.right( 4 );
             }
@@ -163,7 +163,7 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
     case COUNTER_TYPE:
     case TIME_TICKS_TYPE:
         m_data = data;
-        m_data.insert( 0, static_cast< int >(sizeof( qint64 )) - m_data.size(), 0 );
+        m_data.prepend( QByteArray( static_cast< int >(sizeof( qint64 )) - m_data.size(), '\x0' ) );
         break;
     default:
         m_data = data;
@@ -305,12 +305,12 @@ QByteArray QtSnmpData::makeSnmpChunk() const {
             QByteArray chunk = compressLeadingZeros( m_data );
             const auto first_byte = static_cast< quint8 >( chunk.at( 0 ) );
             if( 0x7f < first_byte ) {
-                chunk.prepend( 1, 0x00 );
+                chunk.prepend( '\x0' );
             }
             Q_ASSERT( chunk.count() <= 127 );
             const char count = static_cast< char >( chunk.count() );
-            chunk.prepend( 1, count );
-            chunk.prepend( 1, static_cast< char >( m_type ) );
+            chunk.prepend( count );
+            chunk.prepend( static_cast< char >( m_type ) );
             return chunk;
         }
     case SEQUENCE_TYPE:

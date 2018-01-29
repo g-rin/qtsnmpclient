@@ -2,6 +2,8 @@
 
 #include "QtSnmpData.h"
 #include <QMetaType>
+#include <QSharedPointer>
+#include <QList>
 
 namespace qtsnmpclient {
 
