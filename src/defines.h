@@ -71,14 +71,22 @@ static inline QMetaMethod findMethod( const QMetaObject*const metaObject,
     const auto left = QString( "%1(" ).arg( method );
     for(int i = 0; i < metaObject->methodCount(); ++i ) {
         const auto& m = metaObject->method( i );
+#if QT_VERSION < QT_VERSION_CHECK(5,0,0)
+        const QString right = QString::fromUtf8( m.signature() ).left( left.length() );
+#else
         const QString right = QString::fromUtf8( m.methodSignature() ).left( left.length() );
+#endif
         if( 0 == left.compare( right ) ) {
             return m;
         }
     }
 
     for( int i = 0; i < metaObject->methodCount(); ++i ) {
+#if QT_VERSION < QT_VERSION_CHECK(5,0,0)
+        qWarning() << metaObject->method(i).signature();
+#else
         qWarning() << metaObject->method(i).methodSignature();
+#endif
     }
     qWarning() << "no match for: " << method;
 
@@ -119,6 +127,7 @@ template < typename T > inline QGenericReturnArgument ads_qrarg( const T& ) {
                                         this, \
                                         connection, \
                                         _int_QRARG_EXPAND(  preInvokeStatement) QARG_EXPAND(__VA_ARGS__));\
+            UNUSED( invokeResult );\
             Q_ASSERT( invokeResult );\
             returnStatement; \
         }\

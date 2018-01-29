@@ -57,12 +57,11 @@ QHostAddress Session::agentAddress() const {
 
 void Session::setAgentAddress( const QHostAddress& value ) {
     bool ok = !value.isNull();
-    ok = ok && !value.isMulticast();
     ok = ok && ( QHostAddress( QHostAddress::Any ) != value );
     if( ok ) {
         m_agent_address = value;
         m_socket->close();
-        m_socket->bind( m_agent_address );
+        m_socket->bind();
     } else {
         qWarning() << Q_FUNC_INFO << "attempt to set invalid agent address( " << value << ")";
     }
