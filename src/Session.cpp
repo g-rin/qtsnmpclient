@@ -375,12 +375,33 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
 }
 
 void Session::sendDatagram( const QByteArray& datagram ) {
-    if( m_socket->writeDatagram( datagram, m_agent_address, SnmpPort ) ) {
+    // NOTE: If we can't send a datagram at once,
+    //       then we wont try to resend it again.
+    //       We assume that the network has cirtical problem in that case,
+    //       therefore sending the datagram again wont be successed.
+    //       So we will cancel the current work.
+
+    const auto res = m_socket->writeDatagram( datagram, m_agent_address, SnmpPort );
+    if( -1 == res ) {
+        qWarning() << Q_FUNC_INFO
+                   << "unable to send a datagram "
+                   << "to the agent [" << m_agent_address.toString() << "]";
+        cancelWork();
+    } else if( res != datagram.size() ) {
+        if( res < datagram.size() ) {
+            qWarning() << Q_FUNC_INFO
+                       << "unable to send all bytes of the datagram "
+                          "to the agent [" << m_agent_address.toString() << "]";
+        } else {
+            qWarning() << Q_FUNC_INFO
+                       << "there have send more bytes (" << res << ") "
+                       << "than the datagram contains (" << datagram.size() << ") "
+                       << "to the agent [" << m_agent_address.toString() << "]";
+        }
+        cancelWork();
+    } else {
         Q_ASSERT( ! m_response_wait_timer->isActive() );
         m_response_wait_timer->start();
-    } else {
-        Q_ASSERT( false );
-        cancelWork();
     }
 }
 
