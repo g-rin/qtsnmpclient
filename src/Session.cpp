@@ -281,22 +281,25 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
             const auto& resp = resp_list.at( 2 );
             Q_ASSERT( QtSnmpData::GET_RESPONSE_TYPE == resp.type() );
             if( QtSnmpData::GET_RESPONSE_TYPE != resp.type() ) {
-                qWarning() << Q_FUNC_INFO << "Err: unexpected response type";
-                return result;
+                qWarning() << Q_FUNC_INFO
+                           << "Err: unexpected response type (" << resp.type() << ")";
+                continue;
             }
 
             const auto& children = resp.children();
             Q_ASSERT( 4 == children.count() );
             if( 4 != children.count() ) {
-                qWarning() << Q_FUNC_INFO << "Err: unexpected child count";
-                return result;
+                qWarning() << Q_FUNC_INFO
+                           << "Err: unexpected child count (" << children.count() << ")";
+                continue;
             }
 
             const auto& request_id_data = children.at( 0 );
             Q_ASSERT( QtSnmpData::INTEGER_TYPE == request_id_data.type() );
             if( QtSnmpData::INTEGER_TYPE != request_id_data.type() ) {
-                qWarning() << Q_FUNC_INFO << "Err: request id type";
-                return result;
+                qWarning() << Q_FUNC_INFO
+                           << "Err: request id type (" << request_id_data.type() << ")";
+                continue;
             }
 
             const int response_req_id = request_id_data.intValue();
@@ -306,23 +309,25 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                 m_request_id = -1;
             } else {
                 qWarning() << Q_FUNC_INFO
-                           << "Err: unexpected request_id: " << response_req_id
-                           << " (expected: " << m_request_id << ")";
-                return result;
+                           << "Err: unexpected request_id (" << response_req_id
+                           << " vs  expected " << m_request_id << ")";
+                continue;
             }
 
             const auto& error_state_data = children.at( 1 );
             Q_ASSERT( QtSnmpData::INTEGER_TYPE == error_state_data.type() );
             if( QtSnmpData::INTEGER_TYPE != error_state_data.type() ) {
-                qWarning() << Q_FUNC_INFO << "Err: unexpected error state type";
-                return result;
+                qWarning() << Q_FUNC_INFO
+                           << "Err: unexpected error state type (" << error_state_data.type() << ")";
+                continue;
             }
 
             const auto& error_index_data = children.at( 2 );
             Q_ASSERT( QtSnmpData::INTEGER_TYPE == error_index_data.type() );
             if( QtSnmpData::INTEGER_TYPE != error_index_data.type() ) {
-                qWarning() << Q_FUNC_INFO << "Err: unexpected error index type";
-                return result;
+                qWarning() << Q_FUNC_INFO
+                           << "Err: unexpected error index type (" << error_index_data.type() << ")";
+                continue;
             }
             const int err_st = error_state_data.intValue();
             const int err_in =  error_index_data.intValue();
@@ -332,15 +337,16 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                                         .arg( QString::number( err_in ) )
                                         .arg( m_agent_address.toString() )
                                         .arg( m_current_work->description() );
-                cancelWork();
-                return result;
+                writeDatagram( m_last_request_datagram );
+                continue;
             }
 
             const auto& variable_list_data = children.at( 3 );
             Q_ASSERT( QtSnmpData::SEQUENCE_TYPE == variable_list_data.type() );
             if( QtSnmpData::SEQUENCE_TYPE != variable_list_data.type() ) {
-                qWarning() << Q_FUNC_INFO << "Err: unexpected variable list type";
-                return result;
+                qWarning() << Q_FUNC_INFO
+                           << "Err: unexpected variable list type (" << variable_list_data.type() << ")";
+                continue;
             }
 
             const auto& variable_list = variable_list_data.children();
@@ -355,15 +361,18 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                             result_item.setAddress( object.data() );
                             result << result_item;
                         } else {
-                            qWarning() << Q_FUNC_INFO << "invalid packet content";
+                            qWarning() << Q_FUNC_INFO
+                                       << "invalid object type (" << object.type() << ")";
                             Q_ASSERT( false );
                         }
                     } else {
-                        qWarning() << Q_FUNC_INFO << "invalid packet type";
+                        qWarning() << Q_FUNC_INFO
+                                   << "item count (" << items.count() << ")";
                         Q_ASSERT( false );
                     }
                 } else {
-                    qWarning() << Q_FUNC_INFO << "invalid packet type";
+                    qWarning() << Q_FUNC_INFO
+                               << "invalid variable type (" << variable.type() << ")";
                     Q_ASSERT( false );
                 }
             }
@@ -374,34 +383,37 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
     return result;
 }
 
-void Session::sendDatagram( const QByteArray& datagram ) {
-    // NOTE: If we can't send a datagram at once,
-    //       then we wont try to resend it again.
-    //       We assume that the network has cirtical problem in that case,
-    //       therefore sending the datagram again wont be successed.
-    //       So we will cancel the current work.
-
+bool Session::writeDatagram( const QByteArray& datagram ) {
     const auto res = m_socket->writeDatagram( datagram, m_agent_address, SnmpPort );
     if( -1 == res ) {
         qWarning() << Q_FUNC_INFO
                    << "unable to send a datagram "
                    << "to the agent [" << m_agent_address.toString() << "]";
-        cancelWork();
-    } else if( res != datagram.size() ) {
-        if( res < datagram.size() ) {
-            qWarning() << Q_FUNC_INFO
-                       << "unable to send all bytes of the datagram "
-                          "to the agent [" << m_agent_address.toString() << "]";
-        } else {
-            qWarning() << Q_FUNC_INFO
-                       << "there have send more bytes (" << res << ") "
-                       << "than the datagram contains (" << datagram.size() << ") "
-                       << "to the agent [" << m_agent_address.toString() << "]";
-        }
-        cancelWork();
-    } else {
+    } else if( res < datagram.size() ) {
+        qWarning() << Q_FUNC_INFO
+                   << "unable to send all bytes of the datagram "
+                      "to the agent [" << m_agent_address.toString() << "]";
+    } else if( res > datagram.size() ) {
+        qWarning() << Q_FUNC_INFO
+                   << "there have send more bytes (" << res << ") "
+                   << "than the datagram contains (" << datagram.size() << ") "
+                   << "to the agent [" << m_agent_address.toString() << "]";
+    }
+    return res == datagram.size();
+}
+
+void Session::sendDatagram( const QByteArray& datagram ) {
+    if( writeDatagram( datagram ) ) {
+        m_last_request_datagram = datagram;
         Q_ASSERT( ! m_response_wait_timer->isActive() );
         m_response_wait_timer->start();
+    } else {
+        // NOTE: If we can't send a datagram at once,
+        //       then we wont try to resend it again.
+        //       We assume that the network has cirtical problem in that case,
+        //       therefore sending the datagram again wont be successed.
+        //       So we will cancel the current work.
+        cancelWork();
     }
 }
 
