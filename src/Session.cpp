@@ -236,16 +236,37 @@ void Session::sendRequestSetValue( const QByteArray& community,
 }
 
 void Session::onReadyRead() {
-    const int size = static_cast< int >( m_socket->pendingDatagramSize() );
-    if( size ) {
-        QByteArray datagram;
-        datagram.resize( size );
-        m_socket->readDatagram( datagram.data(), size );
+    while( m_socket->hasPendingDatagrams() ) {
+        // NOTE:
+        // The field size sets a theoretical limit of 65,535 bytes
+        // (8 byte header + 65,527 bytes of data) for a UDP datagram.
+        // However the actual limit for the data length,
+        // which is imposed by the underlying IPv4 protocol,
+        // is 65,507 bytes (65,535 − 8 byte UDP header − 20 byte IP header).
+        const int max_datagram_size = 65507;
 
-        const auto& list = getResponseData( datagram );
-        if( !list.isEmpty() ) {
-            Q_ASSERT( !m_current_work.isNull() );
-            m_current_work->processData( list );
+        const int size = static_cast< int >( m_socket->pendingDatagramSize() );
+        bool ok = (size > 0);
+        ok = ok && ( size <= max_datagram_size );
+        if( ok ) {
+            QByteArray datagram;
+            datagram.resize( size );
+            const auto read_size = m_socket->readDatagram( datagram.data(), size );
+            if( size == read_size ) {
+                const auto& list = getResponseData( datagram );
+                if( !list.isEmpty() ) {
+                    Q_ASSERT( !m_current_work.isNull() );
+                    m_current_work->processData( list );
+                }
+            } else {
+                qWarning() << Q_FUNC_INFO
+                           << "Not all bytes have been read [" << read_size << "/" << size << "]";
+            }
+        } else {
+            qWarning() << Q_FUNC_INFO
+                       << "There is an invalid size of UDP datagram recemived:" << size << ". "
+                       << "All data will be read from the socket";
+            m_socket->readAll();
         }
     }
 }
