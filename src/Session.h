@@ -12,6 +12,7 @@
 #include <QPair>
 #include <QTimer>
 #include <QHostAddress>
+#include <QQueue>
 #include "win_export.h"
 
 namespace qtsnmpclient {
@@ -58,7 +59,8 @@ private:
 private:
     void addWork( const JobPointer& );
     void startNextWork();
-    Q_SLOT void cancelWork();
+    Q_SLOT void onResponseTimeExpired();
+    void cancelWork();
     Q_SLOT void onReadyRead();
     QtSnmpDataList getResponseData( const QByteArray& datagram );
     bool writeDatagram( const QByteArray& );
@@ -73,6 +75,7 @@ private:
     QTimer*const m_response_wait_timer;
     qint32 m_work_id = 1;
     qint32 m_request_id = -1;
+    QQueue< qint32 > m_request_history_queue;
     QByteArray m_last_request_datagram;
     SnmpJobList m_work_queue;
     JobPointer m_current_work;

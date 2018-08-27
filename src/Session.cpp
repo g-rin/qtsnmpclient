@@ -47,7 +47,7 @@ Session::Session( QObject*const parent )
              SLOT(onReadyRead()) );
     connect( m_response_wait_timer,
              SIGNAL(timeout()),
-             SLOT(cancelWork()) );
+             SLOT(onResponseTimeExpired()) );
     m_response_wait_timer->setInterval( default_response_timeout );
 }
 
@@ -127,8 +127,10 @@ void Session::addWork( const JobPointer& work ) {
         m_work_queue.push_back( work );
         startNextWork();
     } else {
-        qWarning() << "Warning: snmp request( " << work->description() << ") "
-                   << "to " << m_agent_address.toString() << " dropped, queue if full";
+        qWarning() << Q_FUNC_INFO
+                   << "The snmp request( " << work->description() << ") "
+                   << "for the agent (" << m_agent_address.toString() << ") has dropped, "
+                   << "because of the queue is full.";
     }
 }
 
@@ -144,6 +146,15 @@ void Session::completeWork( const QtSnmpDataList& values ) {
     emit responseReceived( m_current_work->id(), values );
     m_current_work.clear();
     startNextWork();
+}
+
+void Session::onResponseTimeExpired() {
+    qWarning() << Q_FUNC_INFO
+               << "There is no any snmp response received "
+               << "from the agent( " << m_agent_address.toString() << ") "
+               << " for the request (" << m_request_id << "). "
+               << "The current work: " << m_current_work->description() << " will be canceled.";
+    cancelWork();
 }
 
 void Session::cancelWork() {
@@ -178,7 +189,9 @@ void Session::sendRequestGetValues( const QStringList& names ) {
         full_packet.addChild( request );
         sendDatagram( full_packet.makeSnmpChunk() );
     } else {
-        qWarning() << Q_FUNC_INFO << "we already wait response";
+        qWarning() << Q_FUNC_INFO
+                   << "We are already waiting a response "
+                   << "from the agent (" << m_agent_address.toString() << ")";
     }
 }
 
@@ -202,7 +215,9 @@ void Session::sendRequestGetNextValue( const QString& name ) {
         full_packet.addChild( request );
         sendDatagram( full_packet.makeSnmpChunk() );
     } else {
-        qWarning() << Q_FUNC_INFO << "we already wait response";
+        qWarning() << Q_FUNC_INFO
+                   << "We are already waiting a response "
+                   << "from the agent (" << m_agent_address.toString() << ")";
     }
 }
 
@@ -230,7 +245,9 @@ void Session::sendRequestSetValue( const QByteArray& community,
         pdu_packet.addChild( request_type );
         sendDatagram( pdu_packet.makeSnmpChunk() );
     } else {
-        qWarning() << Q_FUNC_INFO << "we already wait response";
+        qWarning() << Q_FUNC_INFO
+                   << "We are already waiting a response "
+                   << "from the agent (" << m_agent_address.toString() << ")";
     }
 }
 
@@ -259,11 +276,13 @@ void Session::onReadyRead() {
                 }
             } else {
                 qWarning() << Q_FUNC_INFO
-                           << "Not all bytes have been read [" << read_size << "/" << size << "]";
+                           << "Not all bytes have been read (" << read_size << "/" << size << ") "
+                           << " from the agent (" << m_agent_address.toString() << ")";
             }
         } else {
             qWarning() << Q_FUNC_INFO
-                       << "There is an invalid size of UDP datagram recemived:" << size << ". "
+                       << "There is an invalid size of UDP datagram received:" << size << " "
+                       << "from the agent (" << m_agent_address.toString() << "). "
                        << "All data will be read from the socket";
             m_socket->readAll();
         }
@@ -273,69 +292,86 @@ void Session::onReadyRead() {
 QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
     QtSnmpDataList result;
     const auto list = QtSnmpData::parseData( datagram );
-    Q_ASSERT( !list.isEmpty() );
     for( const auto& packet : list ) {
         const QtSnmpDataList resp_list = packet.children();
         if( 3 == resp_list.count() ) {
             const auto& resp = resp_list.at( 2 );
-            Q_ASSERT( QtSnmpData::GET_RESPONSE_TYPE == resp.type() );
             if( QtSnmpData::GET_RESPONSE_TYPE != resp.type() ) {
                 qWarning() << Q_FUNC_INFO
-                           << "Err: unexpected response type (" << resp.type() << ")";
+                           << "Unexpected response's type "
+                           << "(" << resp.type() << " vs " << QtSnmpData::GET_RESPONSE_TYPE << ") "
+                           << "in a response of the agent (" << m_agent_address.toString() << "). "
+                           << "The datagram will be ignored.";
                 continue;
             }
 
             const auto& children = resp.children();
-            Q_ASSERT( 4 == children.count() );
             if( 4 != children.count() ) {
                 qWarning() << Q_FUNC_INFO
-                           << "Err: unexpected child count (" << children.count() << ")";
+                           << "Unexpected child count "
+                           << "(" << children.count() << " vs 4) "
+                           << "in a response of the agent (" << m_agent_address.toString() << "). "
+                           << "The datagram will be ignored.";
                 continue;
             }
 
             const auto& request_id_data = children.at( 0 );
-            Q_ASSERT( QtSnmpData::INTEGER_TYPE == request_id_data.type() );
             if( QtSnmpData::INTEGER_TYPE != request_id_data.type() ) {
                 qWarning() << Q_FUNC_INFO
-                           << "Err: request id type (" << request_id_data.type() << ")";
+                           << "Unexpected request id's type "
+                           << "(" << request_id_data.type() << " vs " << QtSnmpData::INTEGER_TYPE << ") "
+                           << "in a response of the agent (" << m_agent_address.toString() << "). "
+                           << "The datagram will be ignored.";
                 continue;
             }
 
             const int response_req_id = request_id_data.intValue();
-            Q_ASSERT( response_req_id == m_request_id );
             if( response_req_id == m_request_id ) {
                 m_response_wait_timer->stop();
                 m_request_id = -1;
             } else {
+                QStringList history;
+                for( const auto item : m_request_history_queue ) {
+                    history << QString::number( item );
+                }
+
                 qWarning() << Q_FUNC_INFO
-                           << "Err: unexpected request_id (" << response_req_id
-                           << " vs  expected " << m_request_id << ")";
+                           << "Unexpected request id "
+                           << "(" << response_req_id << " vs " << m_request_id << ") "
+                           << "in a response of the agent (" << m_agent_address.toString() << "). "
+                           << "History (request id list): " << history.join( ", " ) << " "
+                           << "The datagram will be ignored.";
                 continue;
             }
 
             const auto& error_state_data = children.at( 1 );
-            Q_ASSERT( QtSnmpData::INTEGER_TYPE == error_state_data.type() );
             if( QtSnmpData::INTEGER_TYPE != error_state_data.type() ) {
                 qWarning() << Q_FUNC_INFO
-                           << "Err: unexpected error state type (" << error_state_data.type() << ")";
+                           << "Unexpected error state's type "
+                           << "(" << error_state_data.type() << " vs " << QtSnmpData::INTEGER_TYPE << ") "
+                           << "in a response of the agent (" << m_agent_address.toString() << "). "
+                           << "The datagram will be ignored.";
                 continue;
             }
 
             const auto& error_index_data = children.at( 2 );
-            Q_ASSERT( QtSnmpData::INTEGER_TYPE == error_index_data.type() );
             if( QtSnmpData::INTEGER_TYPE != error_index_data.type() ) {
                 qWarning() << Q_FUNC_INFO
-                           << "Err: unexpected error index type (" << error_index_data.type() << ")";
+                           << "Unexpected error index's type "
+                           << "(" << error_index_data.type() << " vs " << QtSnmpData::INTEGER_TYPE << ") "
+                           << "in a response of the agent (" << m_agent_address.toString() << "). "
+                           << "The datagram will be ignored.";
                 continue;
             }
             const int err_st = error_state_data.intValue();
             const int err_in =  error_index_data.intValue();
             if( err_st || err_in ) {
-                qWarning() << Q_FUNC_INFO << QString( "error [ status: %1; index: %2 ] in answer from %3 for %4" )
-                                        .arg( errorStatusText( err_st ) )
-                                        .arg( QString::number( err_in ) )
-                                        .arg( m_agent_address.toString() )
-                                        .arg( m_current_work->description() );
+                qWarning() << Q_FUNC_INFO
+                           << "An error message received "
+                           << "( status: " << errorStatusText( err_st ) << "; "
+                           << " index: " << err_in <<  ") "
+                           << "from the agent (" << m_agent_address.toString() << ") "
+                           << "The last request will be resend with new ID.";
                 writeDatagram( m_last_request_datagram );
                 continue;
             }
@@ -344,7 +380,10 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
             Q_ASSERT( QtSnmpData::SEQUENCE_TYPE == variable_list_data.type() );
             if( QtSnmpData::SEQUENCE_TYPE != variable_list_data.type() ) {
                 qWarning() << Q_FUNC_INFO
-                           << "Err: unexpected variable list type (" << variable_list_data.type() << ")";
+                           << "Unexpected variable list's type "
+                           << "(" << variable_list_data.type() << " vs " << QtSnmpData::SEQUENCE_TYPE << ") "
+                           << "in a response of the agent (" << m_agent_address.toString() << "). "
+                           << "The datagram will be ignored.";
                 continue;
             }
 
@@ -361,22 +400,32 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                             result << result_item;
                         } else {
                             qWarning() << Q_FUNC_INFO
-                                       << "invalid object type (" << object.type() << ")";
-                            Q_ASSERT( false );
+                                       << "Unexpected object's type "
+                                       << "(" << object.type() << " vs " << QtSnmpData::OBJECT_TYPE << ") "
+                                       << "in a response of the agent (" << m_agent_address.toString() << "). "
+                                       << "The datagram will be ignored.";
                         }
                     } else {
                         qWarning() << Q_FUNC_INFO
-                                   << "item count (" << items.count() << ")";
-                        Q_ASSERT( false );
+                                   << "Unexpected item count "
+                                   << "(" << items.count() << " vs 2) "
+                                   << "in a response of the agent (" << m_agent_address.toString() << "). "
+                                   << "The datagram will be ignored.";
                     }
                 } else {
                     qWarning() << Q_FUNC_INFO
-                               << "invalid variable type (" << variable.type() << ")";
-                    Q_ASSERT( false );
+                               << "Unexpected variable's type "
+                               << "(" << variable.type() << " vs " << QtSnmpData::SEQUENCE_TYPE << ") "
+                               << "in a response of the agent (" << m_agent_address.toString() << "). "
+                               << "The datagram will be ignored.";
                 }
             }
         } else {
-            qWarning() << Q_FUNC_INFO << "parse_get_response error 2";
+            qWarning() << Q_FUNC_INFO
+                       << "Unexpected top packet's children count "
+                       << "(" << resp_list.count() << " vs 3) "
+                       << "in a response of the agent (" << m_agent_address.toString() << "). "
+                       << "The datagram will be ignored.";
         }
     }
     return result;
@@ -386,17 +435,17 @@ bool Session::writeDatagram( const QByteArray& datagram ) {
     const auto res = m_socket->writeDatagram( datagram, m_agent_address, SnmpPort );
     if( -1 == res ) {
         qWarning() << Q_FUNC_INFO
-                   << "unable to send a datagram "
+                   << "Unable to send a datagram "
                    << "to the agent [" << m_agent_address.toString() << "]";
     } else if( res < datagram.size() ) {
         qWarning() << Q_FUNC_INFO
-                   << "unable to send all bytes of the datagram "
+                   << "Unable to send all bytes of the datagram "
                       "to the agent [" << m_agent_address.toString() << "]";
     } else if( res > datagram.size() ) {
         qWarning() << Q_FUNC_INFO
-                   << "there have send more bytes (" << res << ") "
+                   << "There are more bytes (" << res << ") "
                    << "than the datagram contains (" << datagram.size() << ") "
-                   << "to the agent [" << m_agent_address.toString() << "]";
+                   << "have been sent to the agent (" << m_agent_address.toString() << ")";
     }
     return res == datagram.size();
 }
@@ -428,6 +477,10 @@ qint32 Session::createWorkId() {
 
 void Session::updateRequestId() {
     m_request_id = 1 + abs( rand() ) % 0x7FFF;
+    m_request_history_queue.enqueue( m_request_id );
+    while( m_request_history_queue.count() > 10 ) {
+        m_request_history_queue.dequeue();
+    }
 }
 
 } // namespace qtsnmpclient
