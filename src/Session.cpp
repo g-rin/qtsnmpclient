@@ -121,7 +121,9 @@ qint32 Session::setValue( const QByteArray& community,
 }
 
 void Session::addWork( const JobPointer& work ) {
+#ifndef Q_CC_MSVC
     IN_QOBJECT_THREAD( work );
+#endif
     const int queue_limit = 10;
     if( m_work_queue.count() < queue_limit ) {
         m_work_queue.push_back( work );

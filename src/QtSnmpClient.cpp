@@ -30,7 +30,9 @@ QHostAddress QtSnmpClient::agentAddress() const {
 }
 
 void QtSnmpClient::setAgentAddress( const QHostAddress& value ) {
+#ifndef Q_CC_MSVC
     IN_QOBJECT_THREAD( value );
+#endif
     m_session->setAgentAddress( value );
 }
 
@@ -39,7 +41,9 @@ QByteArray QtSnmpClient::community() const {
 }
 
 void QtSnmpClient::setCommunity( const QByteArray& value ) {
+#ifndef Q_CC_MSVC
     IN_QOBJECT_THREAD( value );
+#endif
     m_session->setCommunity( value );
 }
 
@@ -48,7 +52,9 @@ int QtSnmpClient::responseTimeout() const {
 }
 
 void QtSnmpClient::setReponseTimeout( const int value ) {
+#ifndef Q_CC_MSVC
     IN_QOBJECT_THREAD( value );
+#endif
     m_session->setResponseTimeout( value );
 }
 
