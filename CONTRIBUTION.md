@@ -19,7 +19,9 @@ Build to project inside "build" directory:
 
 Run the test:
 
-    ./release/bin/manual_test 
+    ./release/bin/manual_test 127.0.0.1
+    
+Terminate the test when you need. It will repeatedly request and display the values of some OID's from the .1.3.6.1.2.1 branch.
 
 Make your change. Add tests for your change. And check it by your tests.
 
