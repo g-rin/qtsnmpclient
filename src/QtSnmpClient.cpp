@@ -33,7 +33,14 @@ void QtSnmpClient::setAgentAddress( const QHostAddress& value ) {
 #ifndef Q_CC_MSVC
     IN_QOBJECT_THREAD( value );
 #endif
-    m_session->setAgentAddress( value );
+    bool ok = QHostAddress( "0.0.0.0" ) != value;
+    ok = ok && !value.isNull();
+    if (ok ) {
+        m_session->setAgentAddress( value );
+    } else {
+        qWarning() << Q_FUNC_INFO
+                   << trUtf8( "invalid address %1 will be ignored." ).arg( value.toString() );
+    }
 }
 
 QByteArray QtSnmpClient::community() const {
