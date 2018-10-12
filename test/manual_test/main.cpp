@@ -1,6 +1,7 @@
 #include "Tester.h"
 #include <QCoreApplication>
 #include <QThread>
+#include <QDebug>
 #include <cassert>
 
 void makeTester( const QString& address ) {
@@ -22,11 +23,11 @@ void makeTester( const QString& address ) {
 
 int main( int argc, char** argv ) {
     QCoreApplication app( argc, argv );
-
-    // TODO: type network address of you SNMP agent (Network router as example)
-//    makeTester( "192.168.0.113" );
-//    makeTester( "192.168.0.201" );
-//    makeTester( "192.168.0.222" );
-    makeTester( "192.168.29.2" );
+    if( 2 != argc ) {
+        qDebug() << "Incorrect input arguments. The agent address isn't specified.";
+        qDebug() << "Usage: " << argv[0] << " <agent IP address>";
+        exit( 1 );
+    }
+    makeTester( argv[1] );
     return app.exec();
 }
