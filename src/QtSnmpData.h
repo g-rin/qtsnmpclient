@@ -67,7 +67,7 @@ public:
 
     QVariant toVariant() const;
 
-    static QtSnmpData integer( const int value );
+    static QtSnmpData integer( const qint32 value );
     static QtSnmpData null();
     static QtSnmpData string( const QByteArray& value );
     static QtSnmpData sequence();
@@ -78,7 +78,7 @@ private:
     qint32 m_type = INVALID_TYPE;
     qint32 m_padding = 0;
     QByteArray m_data;
-    QList< QtSnmpData > m_childs;
+    QList< QtSnmpData > m_children;
     QByteArray m_address;
 };
 

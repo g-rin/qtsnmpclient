@@ -109,9 +109,11 @@ namespace {
             result = QByteArray( 1, static_cast< char >( length ) );
         } else {
             QByteArray ar_val;
-            QDataStream( &ar_val, QIODevice::WriteOnly ) << length;
+            QDataStream stream( &ar_val, QIODevice::WriteOnly );
+            stream.setVersion( QDataStream::Qt_4_5 );
+            stream << length;
             ar_val = compressLeadingZeros( ar_val );
-            const auto size = static_cast < char >( 0x80 + ar_val.size() );
+            const auto size = static_cast< char >( 0x80 + ar_val.size() );
             result = QByteArray( 1, size ) + ar_val;
         }
         return result;
@@ -158,7 +160,7 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
     case GET_NEXT_REQUEST_TYPE:
     case GET_RESPONSE_TYPE:
     case SET_REQUEST_TYPE:
-        m_childs = parseData( data );
+        m_children = parseData( data );
         break;
     case COUNTER_TYPE:
     case TIME_TICKS_TYPE:
@@ -185,9 +187,8 @@ bool QtSnmpData::isValid() const {
     case GET_REQUEST_TYPE:
     case GET_NEXT_REQUEST_TYPE:
     case GET_RESPONSE_TYPE:
-        return m_data.isEmpty();
     case SET_REQUEST_TYPE:
-        return !m_data.isEmpty();
+        return m_data.isEmpty();
     case OBJECT_TYPE:
     case STRING_TYPE:
         return true;
@@ -252,14 +253,18 @@ qint64 QtSnmpData::longLongValue() const {
     case TIME_TICKS_TYPE:
     case COUNTER_TYPE: {
             qint64 val;
-            QDataStream( m_data ) >> val;
+            QDataStream stream( m_data );
+            stream.setVersion( QDataStream::Qt_4_5 );
+            stream >> val;
             return val;
         }
     case IP_ADDR_TYPE:
     case GAUGE_TYPE:
     case INTEGER_TYPE: {
             qint32 val;
-            QDataStream( m_data ) >> val;
+            QDataStream stream( m_data );
+            stream.setVersion( QDataStream::Qt_4_5 );
+            stream >> val;
             return val;
         }
     default: break;
@@ -285,11 +290,11 @@ void QtSnmpData::setAddress( const QByteArray& value ) {
 }
 
 QList< QtSnmpData > QtSnmpData::children() const {
-    return m_childs;
+    return m_children;
 }
 
 void QtSnmpData::addChild( const QtSnmpData& child ) {
-    m_childs << child;
+    m_children << child;
 }
 
 QByteArray QtSnmpData::makeSnmpChunk() const {
@@ -320,7 +325,7 @@ QByteArray QtSnmpData::makeSnmpChunk() const {
     case SET_REQUEST_TYPE:
         {
             QByteArray chunk;
-            foreach( const QtSnmpData& child, m_childs ) {
+            for( const auto& child : m_children ) {
                 chunk += child.makeSnmpChunk();
             }
             return packContent( m_type, chunk );
@@ -349,6 +354,7 @@ QVariant QtSnmpData::toVariant() const {
 QtSnmpData QtSnmpData::integer( const int value ) { // static
     QByteArray value_data;
     QDataStream stream( &value_data, QIODevice::WriteOnly );
+    stream.setVersion( QDataStream::Qt_4_5 );
     stream << value;
     return QtSnmpData( INTEGER_TYPE, value_data );
 }
@@ -391,7 +397,9 @@ QList< QtSnmpData > QtSnmpData::parseData( const QByteArray& data ) { // static
                     if( leading_zeros_count > 0 ) {
                         length_data.insert( 0, QByteArray( leading_zeros_count, 0 ) );
                     }
-                    QDataStream( length_data ) >> data_length;
+                    QDataStream stream( length_data );
+                    stream.setVersion( QDataStream::Qt_4_5 );
+                    stream >> data_length;
                 } else {
                     qWarning() << Q_FUNC_INFO << "invalid packet size";
                     break;
@@ -421,28 +429,34 @@ QList< QtSnmpData > QtSnmpData::parseData( const QByteArray& data ) { // static
 }
 
 QDataStream& operator<<( QDataStream& stream, const QtSnmpData& obj ) {
+    const auto prev_version = stream.version();
+    stream.setVersion( QDataStream::Qt_4_5 );
     stream << obj.m_type;
     stream << obj.m_data;
-    stream << obj.m_childs;
+    stream << obj.m_children;
     stream << obj.m_address;
+    stream.setVersion( prev_version );
     return stream;
 }
 
 QDataStream& operator>>( QDataStream& stream, QtSnmpData& obj ) {
+    const auto prev_version = stream.version();
+    stream.setVersion( QDataStream::Qt_4_5 );
     stream >> obj.m_type;
     stream >> obj.m_data;
-    stream >> obj.m_childs;
+    stream >> obj.m_children;
     stream >> obj.m_address;
+    stream.setVersion( prev_version );
     return stream;
 }
 
 QDebug operator<<( QDebug stream, const QtSnmpData& obj ) {
     stream << "SnmpData( ";
-    stream << "type: " << obj.typeDescription() << ", ";
+    stream << "type: " << obj.typeDescription() << "; ";
     const QByteArray data = obj.data();
     stream << "data (" << data.size() << "): " << data.toHex() << "; ";
-    stream << "childes: " << obj.children() << ", ";
-    stream << "address: " << obj.address() << " )";
+    stream << "address: " << obj.address() << "; ";
+    stream << "children (" << obj.children().count() << "): " << obj.children() << " )";
     return stream;
 }
 
@@ -451,7 +465,7 @@ bool operator==( const QtSnmpData& left, const QtSnmpData& right ) {
     if( &left != &right ) {
         res = res && ( left.m_type == right.m_type );
         res = res && ( left.m_data == right.m_data );
-        res = res && ( left.m_childs == right.m_childs );
+        res = res && ( left.m_children == right.m_children );
         res = res && ( left.m_address == right.m_address );
     }
     return res;
