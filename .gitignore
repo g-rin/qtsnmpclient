@@ -1,0 +1,94 @@
+# ----------------------------------------------------------------------------
+# This file is used to ignore files which are generated
+# ----------------------------------------------------------------------------
+
+*~
+*.a
+*.core
+*.moc
+*.o
+*.obj
+*.orig
+*.rej
+*_pch.h.cpp
+*_resource.rc
+*.qm
+.#*
+*.*#
+.qmake.cache
+.qmake.stash
+tags
+*.debug
+Makefile*
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.qch
+*.qhc
+*.log
+*.rpm
+*.git_version
+Thumbs.db
+
+# qtcreator generated files
+# ---------------------
+*.pro.user
+*.pro.user.*
+*.autosave
+gdb.txt
+
+# qthelp generated files
+# ---------------------
+*.qhcp
+*.qhp
+
+# pdflatex generated files
+# ---------------------
+*.aux
+*.out
+*.pdf
+*.toc
+
+# xemacs temporary files
+# ---------------------
+*.flc
+
+# Vim temporary files
+# ---------------------
+.*.swp
+
+# Visual Studio generated files
+# ---------------------
+*.ib_pdb_index
+*.idb
+*.ilk
+*.pdb
+*.suo
+*vcproj.*.*.user
+*.ncb
+.vscode/
+
+# MinGW generated files
+# ---------------------
+*.Debug
+*.Release
+
+# Directories to ignore
+# ---------------------
+build/
+doxygen/
+
+# Protobuffer generated files
+#----------------------
+*.pb.cc
+*.pb.h
+/scripts/nsis/*.exe
+
+# vendor backtrace
+vendor/libbacktrace/.libs/
+vendor/libbacktrace/backtrace-supported.h
+vendor/libbacktrace/config.h
+vendor/libbacktrace/config.status
+vendor/libbacktrace/libtool
+vendor/libbacktrace/stamp-h1
+
