@@ -43,6 +43,17 @@ void QtSnmpClient::setAgentAddress( const QHostAddress& value ) {
     }
 }
 
+quint16 QtSnmpClient::agentPort() const {
+    return m_session->agentPort();
+}
+
+void QtSnmpClient::setAgentPort( const quint16 value ) {
+#ifndef Q_CC_MSVC
+    IN_QOBJECT_THREAD( value );
+#endif
+    m_session->setAgentPort( value );
+}
+
 QByteArray QtSnmpClient::community() const {
     return m_session->community();
 }

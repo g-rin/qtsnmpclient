@@ -21,10 +21,13 @@ class Session : public QObject {
     Q_OBJECT
     Q_DISABLE_COPY( Session )
 public:
-    Session( QObject*const parent = 0 );
+    Session( QObject*const parent = nullptr );
 
     QHostAddress agentAddress() const;
     void setAgentAddress( const QHostAddress& );
+
+    quint16 agentPort() const;
+    Q_SLOT void setAgentPort( const quint16 );
 
     QByteArray community() const;
     void setCommunity( const QByteArray& );
@@ -70,6 +73,7 @@ private:
 
 private:
     QHostAddress m_agent_address;
+    quint16 m_agent_port = 161; // default SNMP port
     QByteArray m_community;
     QUdpSocket*const m_socket;
     QTimer*const m_response_wait_timer;

@@ -12,7 +12,6 @@ namespace qtsnmpclient {
 
 namespace {
     const int default_response_timeout = 10000;
-    const quint16 SnmpPort = 161;
 
     QString errorStatusText( const int val ) {
         switch( val ) {
@@ -65,6 +64,15 @@ void Session::setAgentAddress( const QHostAddress& value ) {
     } else {
         qWarning() << Q_FUNC_INFO << "attempt to set invalid agent address( " << value << ")";
     }
+}
+
+
+quint16 Session::agentPort() const {
+    return m_agent_port;
+}
+
+void Session::setAgentPort( const quint16 value ) {
+    m_agent_port = value;
 }
 
 QByteArray Session::community() const {
@@ -124,7 +132,7 @@ void Session::addWork( const JobPointer& work ) {
 #ifndef Q_CC_MSVC
     IN_QOBJECT_THREAD( work );
 #endif
-    const int queue_limit = 10;
+    const int queue_limit = 100;
     if( m_work_queue.count() < queue_limit ) {
         m_work_queue.push_back( work );
         startNextWork();
@@ -373,7 +381,12 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                            << "( status: " << errorStatusText( err_st ) << "; "
                            << " index: " << err_in <<  ") "
                            << "from the agent (" << m_agent_address.toString() << ") "
+                           << "Current job: " << m_current_work->description() << ". "
+                           << "Current request ID is " << response_req_id << ". "
                            << "The last request will be resend with new ID.";
+                if( ! m_request_history_queue.empty() ) {
+                    m_request_id = m_request_history_queue.takeLast();
+                }
                 writeDatagram( m_last_request_datagram );
                 continue;
             }
@@ -390,7 +403,8 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
             }
 
             const auto& variable_list = variable_list_data.children();
-            for( int i = variable_list.count() - 1; i >= 0; --i ) {
+            const int count = variable_list.count();
+            for( int i = 0; i < count; ++i ) {
                 const auto& variable = variable_list.at( i );
                 if( QtSnmpData::SEQUENCE_TYPE == variable.type() ) {
                     const QtSnmpDataList& items = variable.children();
@@ -434,7 +448,7 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
 }
 
 bool Session::writeDatagram( const QByteArray& datagram ) {
-    const auto res = m_socket->writeDatagram( datagram, m_agent_address, SnmpPort );
+    const auto res = m_socket->writeDatagram( datagram, m_agent_address, m_agent_port );
     if( -1 == res ) {
         qWarning() << Q_FUNC_INFO
                    << "Unable to send a datagram "

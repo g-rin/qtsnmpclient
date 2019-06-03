@@ -16,6 +16,9 @@ public:
     QHostAddress agentAddress() const;
     Q_SLOT void setAgentAddress( const QHostAddress& );
 
+    quint16 agentPort() const;
+    Q_SLOT void setAgentPort( const quint16 );
+
     QByteArray community() const;
     Q_SLOT void setCommunity( const QByteArray& );
 
@@ -35,7 +38,7 @@ public:
                      const int type,
                      const QByteArray& value );
 
-private:
+public:
     Q_SIGNAL void responseReceived( const qint32 request_id,
                                     const QtSnmpDataList& );
     Q_SIGNAL void requestFailed( const qint32 request_id );
