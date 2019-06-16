@@ -565,7 +565,7 @@ private slots:
         }
     }
 
-    void testRepeatRequestAfterError1() {
+    void testRepeatRequestAfterError() {
         // Check that client will repeate the request with different id
         // until it received non-error answer.
         // We'll send 1 request via client and respond to it 2 errors and 1 (last) valid answer
@@ -732,6 +732,66 @@ private slots:
             cleanResponseData();
         }
     }
+
+    void testWaitingTimeOutWithErrorResponses() {
+        // Check that client report about failing response even if receiving error responses
+
+        QVERIFY( milliseconds{m_client->responseTimeout()} >= 10*default_delay_ms );
+
+        auto checkWaitingTimeOutWithErrorResponses = [this]( const int error_status ){
+            const auto oid = generateOID();
+            QCOMPARE( m_client->isBusy(), false );
+            const auto req_id = m_client->requestValue( oid );
+            QCOMPARE( m_client->isBusy(), true );
+            QVERIFY( req_id > 0 );
+
+            steady_clock::time_point start = steady_clock::now();
+            milliseconds limit{ 2*m_client->responseTimeout() };
+            int expected_request_count = 1;
+
+            do {
+                QTest::qWait( default_delay_ms.count() );
+
+                // check request
+                QVERIFY( m_request_count > 0 );
+                QVERIFY( m_request_count <= expected_request_count );
+                if( m_request_count == expected_request_count ) {
+                    QCOMPARE( m_received_request_data_list.count(), expected_request_count );
+                    ++expected_request_count;
+                    QtSnmpData internal_request_id;
+                    QVERIFY( checkSingleVariableRequest( m_received_request_data_list.last(),
+                                                         QtSnmpData::GET_REQUEST_TYPE,
+                                                         m_client->community(),
+                                                         oid,
+                                                         &internal_request_id ) );
+                    // send error response
+                    auto response_value = QtSnmpData::string( QUuid::createUuid().toByteArray() );
+                    response_value.setAddress( oid );
+                    const auto response = makeResponse( internal_request_id.intValue(),
+                                                        m_client->community(),
+                                                        response_value,
+                                                        error_status,
+                                                        1 );
+                    m_socket->writeDatagram( response.makeSnmpChunk(), m_client_address, m_client_port );
+                } else {
+                    QTest::qWait( 500 );
+                    break;
+                }
+            } while( ( steady_clock::now() - start ) < limit );
+
+            // check response
+            QCOMPARE( m_client->isBusy(), false );
+            QCOMPARE( m_response_count, 0 );
+            QCOMPARE( m_fail_count, 1 );
+            QCOMPARE( m_failed_request_id, req_id );
+        };
+
+        for( int i = 0; i < 4; ++i ) {
+            checkWaitingTimeOutWithErrorResponses( ErrorStatusNoSuchName );
+            cleanResponseData();
+        }
+    }
+
 };
 
 QTEST_MAIN( TestQtSnmpClient )
