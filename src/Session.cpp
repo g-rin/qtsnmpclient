@@ -33,6 +33,33 @@ namespace {
         }
         return QString( "Unsupported error(%1)" ).arg( val );
     }
+
+    QtSnmpData changeRequestId( const QtSnmpData& request,
+                                const int request_id )
+    {
+        Q_ASSERT( QtSnmpData::SEQUENCE_TYPE == request.type() );
+        Q_ASSERT( 3 == request.children().count() );
+
+        auto message_children = request.children();
+        auto request_item = message_children[2];
+
+        auto new_request_item = QtSnmpData( request_item.type() );
+        new_request_item.addChild( QtSnmpData::integer( request_id ) );
+
+        auto request_children = request_item.children();
+        Q_ASSERT( ! request_children.isEmpty() );
+
+        for( int i = 1; i < request_children.count(); ++i ) {
+            new_request_item.addChild( request_children.at( i ) );
+        }
+
+        QtSnmpData new_message = QtSnmpData::sequence();
+        new_message.addChild( message_children.at(0) );
+        new_message.addChild( message_children.at(1) );
+        new_message.addChild( new_request_item );
+
+        return new_message;
+    }
 }
 
 Session::Session( QObject*const parent )
@@ -197,7 +224,7 @@ void Session::sendRequestGetValues( const QStringList& names ) {
         }
         request.addChild( seq_all_obj );
         full_packet.addChild( request );
-        sendDatagram( full_packet.makeSnmpChunk() );
+        sendRequest( full_packet );
     } else {
         qWarning() << Q_FUNC_INFO
                    << "We are already waiting a response "
@@ -223,7 +250,7 @@ void Session::sendRequestGetNextValue( const QString& name ) {
         seq_all_obj.addChild( seq_obj_info );
         request.addChild( seq_all_obj );
         full_packet.addChild( request );
-        sendDatagram( full_packet.makeSnmpChunk() );
+        sendRequest( full_packet );
     } else {
         qWarning() << Q_FUNC_INFO
                    << "We are already waiting a response "
@@ -253,7 +280,7 @@ void Session::sendRequestSetValue( const QByteArray& community,
         seq_all_obj.addChild( seq_obj_info );
         request_type.addChild( seq_all_obj );
         pdu_packet.addChild( request_type );
-        sendDatagram( pdu_packet.makeSnmpChunk() );
+        sendRequest( pdu_packet );
     } else {
         qWarning() << Q_FUNC_INFO
                    << "We are already waiting a response "
@@ -384,10 +411,9 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                            << "Current job: " << m_current_work->description() << ". "
                            << "Current request ID is " << response_req_id << ". "
                            << "The last request will be resend with new ID.";
-                if( ! m_request_history_queue.empty() ) {
-                    m_request_id = m_request_history_queue.takeLast();
-                }
-                writeDatagram( m_last_request_datagram );
+                updateRequestId();
+                const auto new_request = changeRequestId( m_last_request_data, m_request_id );
+                writeDatagram( new_request.makeSnmpChunk() );
                 continue;
             }
 
@@ -466,9 +492,10 @@ bool Session::writeDatagram( const QByteArray& datagram ) {
     return res == datagram.size();
 }
 
-void Session::sendDatagram( const QByteArray& datagram ) {
+void Session::sendRequest( const QtSnmpData& request ) {
+    const auto datagram = request.makeSnmpChunk();
     if( writeDatagram( datagram ) ) {
-        m_last_request_datagram = datagram;
+        m_last_request_data = request;
         Q_ASSERT( ! m_response_wait_timer->isActive() );
         m_response_wait_timer->start();
     } else {
@@ -492,7 +519,10 @@ qint32 Session::createWorkId() {
 }
 
 void Session::updateRequestId() {
-    m_request_id = 1 + abs( rand() ) % 0x7FFF;
+    const auto prev = m_request_id;
+    do {
+        m_request_id = 1 + abs( rand() ) % 0x7FFF;
+    } while( prev == m_request_id );
     m_request_history_queue.enqueue( m_request_id );
     while( m_request_history_queue.count() > 10 ) {
         m_request_history_queue.dequeue();
