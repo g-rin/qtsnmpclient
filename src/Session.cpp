@@ -364,7 +364,6 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
 
             const int response_req_id = request_id_data.intValue();
             if( response_req_id == m_request_id ) {
-                m_response_wait_timer->stop();
                 m_request_id = -1;
             } else {
                 QStringList history;
@@ -408,8 +407,7 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                            << "( status: " << errorStatusText( err_st ) << "; "
                            << " index: " << err_in <<  ") "
                            << "from the agent (" << m_agent_address.toString() << ") "
-                           << "Current job: " << m_current_work->description() << ". "
-                           << "Current request ID is " << response_req_id << ". "
+                           << "Current job (" << m_current_work->description() << "). "
                            << "The last request will be resend with new ID.";
                 updateRequestId();
                 const auto new_request = changeRequestId( m_last_request_data, m_request_id );
@@ -440,6 +438,10 @@ QtSnmpDataList Session::getResponseData( const QByteArray& datagram ) {
                             auto result_item = items.at( 1 );
                             result_item.setAddress( object.data() );
                             result << result_item;
+
+                            if( m_response_wait_timer->isActive() ) {
+                                m_response_wait_timer->stop();
+                            }
                         } else {
                             qWarning() << Q_FUNC_INFO
                                        << "Unexpected object's type "
