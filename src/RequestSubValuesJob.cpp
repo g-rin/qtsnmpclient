@@ -15,7 +15,9 @@ void RequestSubValuesJob::start() {
     m_session->sendRequestGetNextValue( m_base_oid );
 }
 
-void RequestSubValuesJob::processData( const QtSnmpDataList& values ) {
+void RequestSubValuesJob::processData( const QtSnmpDataList& values,
+                                       const QList< ErrorResponse >& )
+{
     if( values.isEmpty() ) {
         m_session->completeWork( values );
     }

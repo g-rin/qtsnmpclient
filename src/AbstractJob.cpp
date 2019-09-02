@@ -12,15 +12,17 @@ AbstractJob::AbstractJob( Session*const session,
     Q_ASSERT( m_id > 0 );
 }
 
-AbstractJob::~AbstractJob() {
-    // do nothing. just for virtualization
-}
-
 qint32 AbstractJob::id() const {
     return m_id;
 }
 
-void AbstractJob::processData( const QtSnmpDataList& values ) {
+void AbstractJob::processData( const QtSnmpDataList& values,
+                               const QList< ErrorResponse >& error )
+{
+    if ( ! error.isEmpty() ) {
+        m_session->failWork();
+        return;
+    }
     m_session->completeWork( values );
 }
 

@@ -6,10 +6,11 @@
 #include <chrono>
 
 using namespace std::chrono;
+using namespace std::chrono_literals;
 
 namespace {
     const quint16 TestPort = 65000;
-    const milliseconds default_delay_ms = milliseconds{ 100 };
+    const milliseconds default_delay_ms = 100ms;
 
     QByteArray generateOID() {
         QByteArray oid;
@@ -66,9 +67,21 @@ namespace {
         return true;
     }
 
+
+    enum ErrorStatus {
+        ErrorStatusNoErrors = 0,
+        ErrorStatusTooBig = 1,
+        ErrorStatusNoSuchName = 2,
+        ErrorStatusBadValue = 3,
+        ErrorStatusReadOnly = 4,
+        ErrorStatusOtherErrors = 5
+    };
+
     QtSnmpData makeResponse( const int request_id,
                              const QByteArray& community,
-                             const QtSnmpDataList& list )
+                             const QtSnmpDataList& list,
+                             const int error_status = ErrorStatusNoErrors,
+                             const int error_index = 0 )
     {
         auto var_bind_list = QtSnmpData::sequence();
         for( const auto& data : list ) {
@@ -83,8 +96,8 @@ namespace {
         message.addChild( QtSnmpData::string( community ) );
         auto response_item = QtSnmpData( QtSnmpData::GET_RESPONSE_TYPE );
         response_item.addChild( QtSnmpData::integer( request_id ) );
-        response_item.addChild( QtSnmpData::integer( 0 ) ); // error status
-        response_item.addChild( QtSnmpData::integer( 0 ) ); // error index
+        response_item.addChild( QtSnmpData::integer( error_status ) );
+        response_item.addChild( QtSnmpData::integer( error_index ) );
         response_item.addChild( var_bind_list );
         message.addChild( response_item );
         return message;
@@ -92,11 +105,15 @@ namespace {
 
     QtSnmpData makeResponse( const int request_id,
                              const QByteArray& community,
-                             const QtSnmpData& data )
+                             const QtSnmpData& data,
+                             const int error_status = ErrorStatusNoErrors,
+                             const int error_index = 0 )
     {
         return makeResponse( request_id,
                              community,
-                             QtSnmpDataList() << data );
+                             QtSnmpDataList() << data,
+                             error_status,
+                             error_index );
     }
 
     bool checkMessage( const QtSnmpData& message,
@@ -215,6 +232,7 @@ class TestQtSnmpClient : public QObject {
     QtSnmpDataList m_received_request_data_list;
     QScopedPointer< QtSnmpClient > m_client;
     int m_fail_count = 0;
+    qint32 m_failed_request_id = 0;
     qint32 m_received_request_id = 0;
     QtSnmpDataList m_received_response_list;
     int m_response_count = 0;
@@ -223,6 +241,8 @@ class TestQtSnmpClient : public QObject {
         m_request_count = 0;
         m_received_request_data_list.clear();
         m_response_count = 0;
+        m_fail_count = 0;
+        m_failed_request_id = 0;
         m_received_request_id = 0;
         m_received_response_list.clear();
     }
@@ -230,7 +250,7 @@ class TestQtSnmpClient : public QObject {
 private slots:
     void initTestCase() {
         QVERIFY( connect( m_socket.data(), &QUdpSocket::readyRead, [this]() {
-            while( m_socket->hasPendingDatagrams() ) {
+            while ( m_socket->hasPendingDatagrams() ) {
                 ++m_request_count;
                 const int size = static_cast< int >( m_socket->pendingDatagramSize() );
                 const int max_datagram_size = 65507;
@@ -270,9 +290,10 @@ private slots:
 
         connect( m_client.data(),
                  &QtSnmpClient::requestFailed,
-                 [this]()
+                 [this]( const qint32 request_id )
         {
             ++m_fail_count;
+            m_failed_request_id = request_id;
         });
 
         connect( m_client.data(),
@@ -542,6 +563,96 @@ private slots:
             checkSetValueRequest( QtSnmpData::string( QUuid::createUuid().toByteArray() ) );
             cleanResponseData();
         }
+    }
+
+    void testWaitingTimeOut() {
+        // Check that client resend the same request five times after the timeout will has expired
+        QVERIFY( milliseconds{m_client->responseTimeout()} >= 10*default_delay_ms );
+
+        const auto oid = generateOID();
+        const int attempt_limit = 5;
+        auto last_internal_request_id = QtSnmpData::integer( 0 );
+        const auto req_id = m_client->requestValue( oid );
+        for ( int attempt = 0; attempt < attempt_limit; ++attempt ) {
+            const auto start_waiting = steady_clock::now();
+            int init_cnt = m_request_count;
+            while ( true ) {
+                QTest::qWait( 10 );
+                if ( m_request_count > init_cnt ) {
+                    break; // while
+                }
+                if ( (steady_clock::now() - start_waiting) > 1.1*milliseconds( m_client->responseTimeout()) ) {
+                    break;
+                }
+            }
+
+            QCOMPARE( m_request_count, 1 + attempt );
+            QCOMPARE( m_received_request_data_list.count(), 1 + attempt );
+            QCOMPARE( m_client->isBusy(), true );
+            QCOMPARE( m_response_count, 0 );
+            QCOMPARE( m_fail_count, 0 );
+            QtSnmpData internal_request_id;
+            QVERIFY( checkSingleVariableRequest( m_received_request_data_list.last(),
+                                                 QtSnmpData::GET_REQUEST_TYPE,
+                                                 m_client->community(),
+                                                 oid,
+                                                 &internal_request_id ) );
+            QCOMPARE( internal_request_id.type(), last_internal_request_id.type() );
+            QVERIFY( internal_request_id.data() != last_internal_request_id.data() );
+            last_internal_request_id = internal_request_id;
+        }
+
+        // check after one and an half response timeout
+        QTest::qWait( 2 * m_client->responseTimeout());
+        QCOMPARE( m_request_count, 6 );
+        QCOMPARE( m_received_request_data_list.count(), 6 );
+        QCOMPARE( m_client->isBusy(), false );
+        QCOMPARE( m_response_count, 0 );
+        QCOMPARE( m_fail_count, 1 );
+        QCOMPARE( m_failed_request_id, req_id );
+
+        cleanResponseData();
+    }
+
+    void testErrorResponses() {
+        // Check that client do not resend request after a valid error response
+
+        QVERIFY( milliseconds{m_client->responseTimeout()} >= 10*default_delay_ms );
+
+        const auto oid = generateOID();
+        const auto req_id = m_client->requestValue( oid );
+        QTest::qWait( default_delay_ms.count() );
+
+        QCOMPARE( m_request_count, 1 );
+        QCOMPARE( m_received_request_data_list.count(), 1 );
+        QCOMPARE( m_client->isBusy(), true );
+        QCOMPARE( m_response_count, 0 );
+        QCOMPARE( m_fail_count, 0 );
+        QtSnmpData internal_request_id;
+        QVERIFY( checkSingleVariableRequest( m_received_request_data_list.last(),
+                                             QtSnmpData::GET_REQUEST_TYPE,
+                                             m_client->community(),
+                                             oid,
+                                             &internal_request_id ) );
+        auto response_value = QtSnmpData::string( QUuid::createUuid().toByteArray() );
+        response_value.setAddress( oid );
+        const auto response = makeResponse( internal_request_id.intValue(),
+                                            m_client->community(),
+                                            response_value,
+                                            ErrorStatusNoSuchName,
+                                            1 );
+        m_socket->writeDatagram( response.makeSnmpChunk(), m_client_address, m_client_port );
+
+        // check after one and an half response timeout
+        QTest::qWait( 2 * m_client->responseTimeout());
+        QCOMPARE( m_request_count, 1 );
+        QCOMPARE( m_received_request_data_list.count(), 1 );
+        QCOMPARE( m_client->isBusy(), false );
+        QCOMPARE( m_response_count, 0 );
+        QCOMPARE( m_fail_count, 1 );
+        QCOMPARE( m_failed_request_id, req_id );
+
+        cleanResponseData();
     }
 };
 

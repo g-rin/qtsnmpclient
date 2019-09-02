@@ -11,7 +11,7 @@ public:
                                   const qint32 id,
                                   const QString& base_oid );
     virtual void start() override final;
-    virtual void processData( const QtSnmpDataList& ) override final;
+    virtual void processData( const QtSnmpDataList&, const QList< ErrorResponse >& ) override final;
     virtual QString description() const override final;
 
 private:

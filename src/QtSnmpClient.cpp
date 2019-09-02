@@ -1,5 +1,6 @@
 #include "QtSnmpClient.h"
 #include "Session.h"
+#include <QThread>
 #include "defines.h"
 
 Q_DECLARE_METATYPE( QHostAddress )
@@ -8,21 +9,13 @@ QtSnmpClient::QtSnmpClient( QObject*const parent )
     : QObject( parent )
     , m_session( new qtsnmpclient::Session( this ) )
 {
-    static bool once = true;
-    if( once ) {
-        qRegisterMetaType< QtSnmpDataList >();
-        once = false;
-    }
+    qRegisterMetaType< QtSnmpDataList >();
 
-    connect( m_session,
-             SIGNAL(responseReceived(qint32,QtSnmpDataList)),
-             this,
-             SIGNAL(responseReceived(qint32,QtSnmpDataList)) );
+    connect( m_session, SIGNAL(responseReceived(qint32,QtSnmpDataList)),
+             this, SIGNAL(responseReceived(qint32,QtSnmpDataList)) );
 
-    connect( m_session,
-             SIGNAL(requestFailed(qint32)),
-             this,
-             SIGNAL(requestFailed(qint32)) );
+    connect( m_session, SIGNAL(requestFailed(qint32)),
+             this, SIGNAL(requestFailed(qint32)) );
 }
 
 QHostAddress QtSnmpClient::agentAddress() const {
@@ -30,17 +23,23 @@ QHostAddress QtSnmpClient::agentAddress() const {
 }
 
 void QtSnmpClient::setAgentAddress( const QHostAddress& value ) {
-#ifndef Q_CC_MSVC
-    IN_QOBJECT_THREAD( value );
-#endif
-    bool ok = QHostAddress( "0.0.0.0" ) != value;
-    ok = ok && !value.isNull();
-    if (ok ) {
-        m_session->setAgentAddress( value );
-    } else {
-        qWarning() << Q_FUNC_INFO
-                   << trUtf8( "invalid address %1 will be ignored." ).arg( value.toString() );
+    if ( value.isNull() || (QHostAddress( "0.0.0.0" ) == value) ) {
+        qWarning() << trUtf8( "invalid address %1 will be ignored." ).arg( value.toString() );
+        return;
     }
+
+    if ( thread() != QThread::currentThread() ) {
+        QMetaObject::invokeMethod( this,
+                                   "setAgentAddress",
+                                   Qt::QueuedConnection,
+                                   QGenericReturnArgument(),
+                                   Q_ARG( QHostAddress, value ) );
+        return;
+    }
+    Q_ASSERT( thread() == QThread::currentThread() );
+
+
+    m_session->setAgentAddress( value );
 }
 
 quint16 QtSnmpClient::agentPort() const {
@@ -48,9 +47,16 @@ quint16 QtSnmpClient::agentPort() const {
 }
 
 void QtSnmpClient::setAgentPort( const quint16 value ) {
-#ifndef Q_CC_MSVC
-    IN_QOBJECT_THREAD( value );
-#endif
+    if ( thread() != QThread::currentThread() ) {
+        QMetaObject::invokeMethod( this,
+                                   "setAgentPort",
+                                   Qt::QueuedConnection,
+                                   QGenericReturnArgument(),
+                                   Q_ARG( quint16, value ) );
+        return;
+    }
+    Q_ASSERT( thread() == QThread::currentThread() );
+
     m_session->setAgentPort( value );
 }
 
@@ -59,9 +65,16 @@ QByteArray QtSnmpClient::community() const {
 }
 
 void QtSnmpClient::setCommunity( const QByteArray& value ) {
-#ifndef Q_CC_MSVC
-    IN_QOBJECT_THREAD( value );
-#endif
+    if ( thread() != QThread::currentThread() ) {
+        QMetaObject::invokeMethod( this,
+                                   "setCommunity",
+                                   Qt::QueuedConnection,
+                                   QGenericReturnArgument(),
+                                   Q_ARG( QByteArray, value ) );
+        return;
+    }
+    Q_ASSERT( thread() == QThread::currentThread() );
+
     m_session->setCommunity( value );
 }
 
@@ -70,9 +83,16 @@ int QtSnmpClient::responseTimeout() const {
 }
 
 void QtSnmpClient::setReponseTimeout( const int value ) {
-#ifndef Q_CC_MSVC
-    IN_QOBJECT_THREAD( value );
-#endif
+    if ( thread() != QThread::currentThread() ) {
+        QMetaObject::invokeMethod( this,
+                                   "setReponseTimeout",
+                                   Qt::QueuedConnection,
+                                   QGenericReturnArgument(),
+                                   Q_ARG( int, value ) );
+        return;
+    }
+    Q_ASSERT( thread() == QThread::currentThread() );
+
     m_session->setResponseTimeout( value );
 }
 
@@ -81,7 +101,7 @@ bool QtSnmpClient::isBusy() const {
 }
 
 qint32 QtSnmpClient::requestValue( const QString& oid ) {
-    return requestValues( QStringList() << oid );
+    return requestValues( QStringList( oid ) );
 }
 
 qint32 QtSnmpClient::requestValues( const QStringList& oid_list ) {
@@ -93,9 +113,9 @@ qint32 QtSnmpClient::requestSubValues( const QString& oid ) {
 }
 
 qint32 QtSnmpClient::setValue( const QByteArray& community,
-                         const QString& oid,
-                         const int type,
-                         const QByteArray& value )
+                               const QString& oid,
+                               const int type,
+                               const QByteArray& value )
 {
     return m_session->setValue( community, oid, type, value );
 }

@@ -15,10 +15,18 @@ protected:
     explicit AbstractJob( Session*const,
                           const qint32 id );
 public:
-    virtual ~AbstractJob();
+    virtual ~AbstractJob() = default;
     qint32 id() const;
     virtual void start() = 0;
-    virtual void processData( const QtSnmpDataList& );
+
+    struct ErrorResponse {
+        QString request;
+        QString status;
+        int index = 0;
+    };
+
+    virtual void processData( const QtSnmpDataList&,
+                              const QList< ErrorResponse >& );
     virtual QString description() const = 0;
 
 protected:

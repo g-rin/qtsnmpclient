@@ -53,6 +53,7 @@ public:
                               const int type,
                               const QByteArray& value );
     void completeWork( const QtSnmpDataList& );
+    void failWork();
 
 private:
     Q_SIGNAL void responseReceived( const qint32 request_id,
@@ -62,12 +63,13 @@ private:
 private:
     void addWork( const JobPointer& );
     void startNextWork();
+    void finishWork();
     Q_SLOT void onResponseTimeExpired();
     void cancelWork();
     Q_SLOT void onReadyRead();
-    QtSnmpDataList getResponseData( const QByteArray& datagram );
+    void processIncommingDatagram( const QByteArray& );
     bool writeDatagram( const QByteArray& );
-    void sendDatagram( const QByteArray& );
+    void sendRequest( const QtSnmpData& );
     qint32 createWorkId();
     void updateRequestId();
 
@@ -80,9 +82,11 @@ private:
     qint32 m_work_id = 1;
     qint32 m_request_id = -1;
     QQueue< qint32 > m_request_history_queue;
+    QtSnmpData m_last_request_data;
     QByteArray m_last_request_datagram;
     SnmpJobList m_work_queue;
     JobPointer m_current_work;
+    int m_timeout_cnt = 0;
 };
 
 } // namespace qtsnmpclient
