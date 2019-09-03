@@ -20,6 +20,7 @@ void RequestSubValuesJob::processData( const QtSnmpDataList& values,
 {
     if( values.isEmpty() ) {
         m_session->completeWork( values );
+        return;
     }
 
     const auto& value = values.at( 0 );
