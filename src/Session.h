@@ -77,8 +77,8 @@ private:
     QHostAddress m_agent_address;
     quint16 m_agent_port = 161; // default SNMP port
     QByteArray m_community;
-    QUdpSocket*const m_socket;
-    QTimer*const m_response_wait_timer;
+    QUdpSocket m_socket;
+    QTimer m_response_wait_timer;
     qint32 m_work_id = 1;
     qint32 m_request_id = -1;
     QQueue< qint32 > m_request_history_queue;

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "QtSnmpData.h"
-#include <QMetaType>
-#include <QSharedPointer>
-#include <QList>
+#include <memory>
+#include <queue>
 
 namespace qtsnmpclient {
 
@@ -32,12 +31,12 @@ public:
 protected:
     Session*const m_session;
 private:
-    const qint32 m_id;
+    const qint32 m_id = 0;
     const qint32 m_padding = 0;
 };
 
-typedef QSharedPointer< AbstractJob > JobPointer;
-typedef QList< JobPointer > SnmpJobList;
+typedef std::shared_ptr< AbstractJob > JobPointer;
+typedef std::queue< JobPointer > SnmpJobList;
 
 } // namespace qtsnmpclient
 

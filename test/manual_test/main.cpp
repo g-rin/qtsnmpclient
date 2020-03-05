@@ -23,7 +23,7 @@ void makeTester( const QString& address ) {
 
 int main( int argc, char** argv ) {
     QCoreApplication app( argc, argv );
-    if( 2 != argc ) {
+    if ( 2 != argc ) {
         qDebug() << "Incorrect input arguments. The agent address isn't specified.";
         qDebug() << "Usage: " << argv[0] << " <agent IP address>";
         exit( 1 );

@@ -1,7 +1,6 @@
 #include "QtSnmpClient.h"
 #include "Session.h"
 #include <QThread>
-#include "defines.h"
 
 Q_DECLARE_METATYPE( QHostAddress )
 
@@ -24,7 +23,7 @@ QHostAddress QtSnmpClient::agentAddress() const {
 
 void QtSnmpClient::setAgentAddress( const QHostAddress& value ) {
     if ( value.isNull() || (QHostAddress( "0.0.0.0" ) == value) ) {
-        qWarning() << trUtf8( "invalid address %1 will be ignored." ).arg( value.toString() );
+        qDebug() << tr( "invalid address %1 will be ignored." ).arg( value.toString() );
         return;
     }
 

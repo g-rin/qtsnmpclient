@@ -2,26 +2,26 @@
 
 #include <QByteArray>
 #include <QVariant>
-#include <QList>
 #include <QMap>
 #include <QMetaType>
 #include <QDataStream>
 #include <QDebug>
+#include <vector>
 #include "win_export.h"
 
 class QtSnmpData;
 
-QDataStream& operator<<( QDataStream&, const QtSnmpData& );
-QDataStream& operator>>( QDataStream&, QtSnmpData& );
-QDebug operator<<( QDebug, const QtSnmpData& );
-bool operator==( const QtSnmpData&, const QtSnmpData& );
-bool operator!=( const QtSnmpData&, const QtSnmpData& );
+WIN_EXPORT QDataStream& operator<<( QDataStream&, const QtSnmpData& );
+WIN_EXPORT QDataStream& operator>>( QDataStream&, QtSnmpData& );
+WIN_EXPORT QDebug operator<<( QDebug, const QtSnmpData& );
+WIN_EXPORT bool operator==( const QtSnmpData&, const QtSnmpData& );
+WIN_EXPORT bool operator!=( const QtSnmpData&, const QtSnmpData& );
 
 class WIN_EXPORT QtSnmpData {
-    friend QDataStream& ::operator<<( QDataStream&, const QtSnmpData& );
-    friend QDataStream& ::operator>>( QDataStream&, QtSnmpData& );
-    friend bool ::operator==( const QtSnmpData&, const QtSnmpData& );
-    friend bool ::operator!=( const QtSnmpData&, const QtSnmpData& );
+    friend WIN_EXPORT QDataStream& ::operator<<( QDataStream&, const QtSnmpData& );
+    friend WIN_EXPORT QDataStream& ::operator>>( QDataStream&, QtSnmpData& );
+    friend WIN_EXPORT bool ::operator==( const QtSnmpData&, const QtSnmpData& );
+    friend WIN_EXPORT bool ::operator!=( const QtSnmpData&, const QtSnmpData& );
 public:
     enum {
         INVALID_TYPE = -1,
@@ -58,7 +58,7 @@ public:
     QByteArray address() const;
     void setAddress( const QByteArray& );
 
-    QList< QtSnmpData > children() const;
+    const std::vector< QtSnmpData >& children() const;
     void addChild( const QtSnmpData& );
 
     bool isValid() const;
@@ -72,17 +72,18 @@ public:
     static QtSnmpData string( const QByteArray& value );
     static QtSnmpData sequence();
     static QtSnmpData oid( const QByteArray& );
-    static QList< QtSnmpData > parseData( const QByteArray& );
+    static void parseData( const QByteArray& data_for_parsing,
+                           std::vector< QtSnmpData >*const parsed_data_list );
 
 private:
     qint32 m_type = INVALID_TYPE;
     qint32 m_padding = 0;
     QByteArray m_data;
-    QList< QtSnmpData > m_children;
+    std::vector< QtSnmpData > m_children;
     QByteArray m_address;
 };
 
-typedef QList< QtSnmpData > QtSnmpDataList;
+typedef std::vector< QtSnmpData > QtSnmpDataList;
 typedef QHash< QByteArray, QtSnmpData > QtSnmpDataMap;
 
 Q_DECLARE_METATYPE( QtSnmpData )

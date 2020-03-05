@@ -52,7 +52,7 @@ void Tester::onResponseReceived( const qint32,
                                  const QtSnmpDataList& values )
 {
     assert( QThread::currentThread() == thread() );
-    for( const auto& value : values ) {
+    for ( const auto& value : values ) {
         printf( "%s | %s : %s\n",
                 qPrintable( m_address.toString() ),
                 qPrintable( value.address() ),
@@ -68,7 +68,7 @@ void Tester::onRequestFailed( const qint32 request_id ) {
 
 void Tester::makeRequest() {
     assert( QThread::currentThread() == thread() );
-    if( ! m_snmp_client->isBusy() ) {
+    if ( ! m_snmp_client->isBusy() ) {
         m_snmp_client->requestValue( sysDescr_OID );
         m_snmp_client->requestValues( QStringList() << sysUpTimeInstance_OID << sysName_OID );
         m_snmp_client->requestSubValues( ifIndex_OID );

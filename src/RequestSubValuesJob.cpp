@@ -18,17 +18,17 @@ void RequestSubValuesJob::start() {
 void RequestSubValuesJob::processData( const QtSnmpDataList& values,
                                        const QList< ErrorResponse >& )
 {
-    if( values.isEmpty() ) {
+    if ( 0 == values.size() ) {
         m_session->completeWork( values );
         return;
     }
 
     const auto& value = values.at( 0 );
     const auto& oid = value.address();
-    bool request_next_value = ( 1 == values.count() );
+    bool request_next_value = ( 1 == values.size() );
     request_next_value = request_next_value && ( 0 == oid.indexOf( m_base_oid + "." ) );
-    if( request_next_value ) {
-        m_found << value;
+    if ( request_next_value ) {
+        m_found.push_back( value );
         m_session->sendRequestGetNextValue( oid );
     } else {
         m_session->completeWork( m_found );
