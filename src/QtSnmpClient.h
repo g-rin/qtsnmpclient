@@ -11,6 +11,12 @@ class WIN_EXPORT QtSnmpClient : public QObject {
     Q_OBJECT
     Q_DISABLE_COPY( QtSnmpClient )
 public:
+    enum ProtocolVersion {
+        SNMPv1 = 0,
+        SNMPv2c = 1,
+    };
+
+public:
     explicit QtSnmpClient( QObject*const parent = nullptr );
 
     QHostAddress agentAddress() const;
@@ -18,6 +24,9 @@ public:
 
     quint16 agentPort() const;
     Q_SLOT void setAgentPort( const quint16 );
+
+    int protocolVersion() const;
+    Q_SLOT void setProtocolVersion( const int );
 
     QByteArray community() const;
     Q_SLOT void setCommunity( const QByteArray& );

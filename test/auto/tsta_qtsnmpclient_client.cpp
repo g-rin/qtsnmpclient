@@ -83,7 +83,7 @@ namespace {
         }
 
         auto message = QtSnmpData::sequence();
-        message.addChild( QtSnmpData::integer(0) ); // version is version-1(0)
+        message.addChild( QtSnmpData::integer( QtSnmpClient::SNMPv2c ) );
         message.addChild( QtSnmpData::string( community ) );
         auto response_item = QtSnmpData( QtSnmpData::GET_RESPONSE_TYPE );
         response_item.addChild( QtSnmpData::integer( request_id ) );
@@ -112,8 +112,9 @@ namespace {
             return false;
         }
 
+        const int default_protocol_version = QtSnmpClient::SNMPv2c;
         const auto version_data = last_message_children.at( 0 );
-        if ( !checkIntegerData( version_data, 0 ) ) { // version always is version-1(0)
+        if ( !checkIntegerData( version_data, default_protocol_version ) ) {
             return false;
         }
 
@@ -638,6 +639,87 @@ private slots:
         QCOMPARE( m_failed_request_id, req_id );
 
         cleanResponseData();
+    }
+
+    void testProtocolVersionV1() {
+        const auto oid = generateOID();
+        QVERIFY( QtSnmpClient::SNMPv2c == m_client->protocolVersion() );
+        m_client->setProtocolVersion( QtSnmpClient::SNMPv1 );
+        QVERIFY( QtSnmpClient::SNMPv1 == m_client->protocolVersion() );
+        const auto req_id = m_client->requestValue( oid );
+
+        QTest::qWait( default_delay_ms.count() );
+        QCOMPARE( m_request_count, 1 );
+        QVERIFY( m_received_request_data_list.size() == 1 );
+        QtSnmpData internal_request_id;
+
+        QtSnmpDataList variables;
+        const auto& request = m_received_request_data_list.rbegin();
+
+        QVERIFY( request->type() == QtSnmpData::SEQUENCE_TYPE );
+        const auto last_message_children = request->children();
+        QVERIFY( last_message_children.size() == 3 );
+        const auto version_data = last_message_children.at( 0 );
+        QVERIFY( checkIntegerData( version_data, QtSnmpClient::SNMPv1 ) );
+        const auto community_data = last_message_children.at( 1 );
+        QVERIFY( checkStringData( community_data, m_client->community() ) );
+        const auto get_request = last_message_children.at( 2 );
+        QVERIFY( get_request.type() == QtSnmpData::GET_REQUEST_TYPE );
+        QVERIFY( get_request.children().size() == 4 );
+        internal_request_id = get_request.children().at( 0 );
+        QVERIFY( internal_request_id.type() == QtSnmpData::INTEGER_TYPE );
+        const auto error_status = get_request.children().at( 1 );
+        QVERIFY( checkIntegerData( error_status, 0 ) ); // ErrorStatus - noError
+        const auto error_index = get_request.children().at( 2 );
+        QVERIFY( checkIntegerData( error_index, 0 ) ); // ErrorIndex - zero for noError ErrorStatus
+        const auto var_bind_list_item = get_request.children().at( 3 );
+        QVERIFY( var_bind_list_item.type() == QtSnmpData::SEQUENCE_TYPE );
+        for ( const auto& var_bind : var_bind_list_item.children() ) {
+             // VarBind is a SEQUENCE of two fields: name and value
+            QVERIFY( var_bind.type() == QtSnmpData::SEQUENCE_TYPE );
+            QVERIFY( var_bind.children().size() == 2 );
+            const auto name = var_bind.children().at( 0 );
+            QVERIFY( name.type() == QtSnmpData::OBJECT_TYPE ); // name as ObjectName
+            // 'value' as ObjectSyntax
+            auto variable = var_bind.children().at( 1 );
+            variable.setAddress( name.data() );
+            variables.push_back( variable );
+        }
+        QVERIFY( variables.size() == 1 );
+        QCOMPARE( variables.at( 0 ).address(), oid );
+
+
+        // make response
+        auto response_value = QtSnmpData::string( QUuid::createUuid().toByteArray() );
+        response_value.setAddress( oid );
+
+        auto var_bind_list = QtSnmpData::sequence();
+        auto var_bind = QtSnmpData::sequence();
+        var_bind.addChild( QtSnmpData::oid( response_value.address() ) );
+        var_bind.addChild( response_value );
+        var_bind_list.addChild( var_bind );
+
+        auto response = QtSnmpData::sequence();
+        response.addChild( QtSnmpData::integer( m_client->protocolVersion()) );
+        response.addChild( QtSnmpData::string( m_client->community() ) );
+        auto response_item = QtSnmpData( QtSnmpData::GET_RESPONSE_TYPE );
+        response_item.addChild( QtSnmpData::integer( internal_request_id.intValue() ) );
+        response_item.addChild( QtSnmpData::integer( ErrorStatusNoErrors ) );
+        response_item.addChild( QtSnmpData::integer( 0 ) );
+        response_item.addChild( var_bind_list );
+        response.addChild( response_item );
+
+        m_socket->writeDatagram( response.makeSnmpChunk(), m_client_address, m_client_port );
+        QTest::qWait( default_delay_ms.count() );
+
+        // check response
+        QCOMPARE( m_client->isBusy(), false );
+        QCOMPARE( m_response_count, 1 );
+        QCOMPARE( m_fail_count, 0 );
+        QCOMPARE( m_received_request_id, req_id );
+        QVERIFY( m_received_response_list.size() == 1 );
+        QCOMPARE( m_received_response_list.at( 0 ).address(), oid );
+        QVERIFY( checkStringData( m_received_response_list.at( 0 ), response_value.textValue() ) );
     }
 };
 

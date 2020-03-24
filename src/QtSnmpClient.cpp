@@ -59,6 +59,24 @@ void QtSnmpClient::setAgentPort( const quint16 value ) {
     m_session->setAgentPort( value );
 }
 
+int QtSnmpClient::protocolVersion() const {
+    return m_session->protocolVersion();
+}
+
+void QtSnmpClient::setProtocolVersion( const int value ) {
+    if ( thread() != QThread::currentThread() ) {
+        QMetaObject::invokeMethod( this,
+                                   "setProtocolVersion",
+                                   Qt::QueuedConnection,
+                                   QGenericReturnArgument(),
+                                   Q_ARG( const int, value ) );
+        return;
+    }
+    Q_ASSERT( thread() == QThread::currentThread() );
+
+    m_session->setProtocolVersion( value );
+}
+
 QByteArray QtSnmpClient::community() const {
     return m_session->community();
 }

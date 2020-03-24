@@ -98,6 +98,14 @@ void Session::setAgentPort( const quint16 value ) {
     m_agent_port = value;
 }
 
+int Session::protocolVersion() const {
+    return m_protocol_version;
+}
+
+void Session::setProtocolVersion( const int value ) {
+    m_protocol_version = value;
+}
+
 QByteArray Session::community() const {
     return m_community;
 }
@@ -230,7 +238,7 @@ void Session::sendRequestGetValues( const QStringList& names ) {
 
     updateRequestId();
     QtSnmpData full_packet = QtSnmpData::sequence();
-    full_packet.addChild( QtSnmpData::integer( 0 ) );
+    full_packet.addChild( QtSnmpData::integer( m_protocol_version ) );
     full_packet.addChild( QtSnmpData::string( m_community ) );
     QtSnmpData request( QtSnmpData::GET_REQUEST_TYPE );
     request.addChild( QtSnmpData::integer( m_request_id ) );
@@ -259,7 +267,7 @@ void Session::sendRequestGetNextValue( const QString& name ) {
 
     updateRequestId();
     QtSnmpData full_packet = QtSnmpData::sequence();
-    full_packet.addChild( QtSnmpData::integer( 0 ) );
+    full_packet.addChild( QtSnmpData::integer( m_protocol_version ) );
     full_packet.addChild( QtSnmpData::string( m_community ) );
     QtSnmpData request( QtSnmpData::GET_NEXT_REQUEST_TYPE );
     request.addChild( QtSnmpData::integer( m_request_id ) );
@@ -294,7 +302,7 @@ void Session::sendRequestSetValue( const QByteArray& community,
 
     updateRequestId();
     auto pdu_packet = QtSnmpData::sequence();
-    pdu_packet.addChild( QtSnmpData::integer( 0 ) );
+    pdu_packet.addChild( QtSnmpData::integer( m_protocol_version ) );
     pdu_packet.addChild( QtSnmpData::string( community ) );
     auto request_type = QtSnmpData( QtSnmpData::SET_REQUEST_TYPE );
     request_type.addChild( QtSnmpData::integer( m_request_id ) );

@@ -29,6 +29,9 @@ public:
     quint16 agentPort() const;
     Q_SLOT void setAgentPort( const quint16 );
 
+    int protocolVersion() const;
+    Q_SLOT void setProtocolVersion( const int );
+
     QByteArray community() const;
     void setCommunity( const QByteArray& );
 
@@ -76,6 +79,7 @@ private:
 private:
     QHostAddress m_agent_address;
     quint16 m_agent_port = 161; // default SNMP port
+    int m_protocol_version = 1; // v2c is default protocol version
     QByteArray m_community;
     QUdpSocket m_socket;
     QTimer m_response_wait_timer;
