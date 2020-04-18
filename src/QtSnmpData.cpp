@@ -1,5 +1,4 @@
 #include "QtSnmpData.h"
-#include "utils.h"
 #include <QHostAddress>
 #include <math.h>
 #include <inttypes.h>
@@ -30,7 +29,7 @@ namespace {
         }
 
         QByteArray result;
-        result.reserve( qtsnmpclient::defragAllocationSizeForQByteArray( 2*oid.size() ) );
+        result.reserve( 2*oid.size() );
         const char first_byte = 0x2B;
         result.append( first_byte );
         int pos = prefix_size + 1;
@@ -78,7 +77,7 @@ namespace {
         QByteArray result;
 
         // NOTE: 4 is a gap for type, size of size and size itsefl (mostly less then 255 as 0xFF)
-        result.reserve( qtsnmpclient::defragAllocationSizeForQByteArray( content_size + 4 ) );
+        result.reserve( content_size + 4 );
         result.append( static_cast< char >( part_key ) );
         if ( content_size < 0x80 ) {
             result.append( static_cast< char >( content_size ) );
@@ -105,17 +104,15 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
     switch ( m_type ) {
     case INTEGER_TYPE:
     case GAUGE_TYPE:
-        // NOTE: RFC defines, that GAUGE_TYPE is UNSIGNED INTERGER (4 bytes)
-        // But Cisco returns ifSpeed as Gauge5Bytes, with zero lead byte
-        m_data.reserve( sizeof( int32_t ) );
-        m_data.append( m_data.capacity() - data.size(), 0 );
-        m_data.append( data.right( m_data.capacity() ) );
+    case COUNTER_TYPE:
+        m_data = data;
+        m_data.detach();
         return;
     case NULL_DATA_TYPE:
         break;
     case OBJECT_TYPE:
         Q_ASSERT( data.size() > 0 );
-        m_data.reserve( qtsnmpclient::defragAllocationSizeForQByteArray( 2*data.size() ) );
+        m_data.reserve( 2*data.size() );
         m_data.append( ISO_ORG_OID );
         for ( int current_index = 1; current_index < data.size(); ) {
             int32_t cur_val = static_cast< uint8_t >( data.at( current_index ) );
@@ -139,6 +136,7 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
             m_data.append( "." + QByteArray::number( cur_val ) );
         }
         m_data.squeeze();
+        m_data.detach();
         return;
     case SEQUENCE_TYPE:
     case GET_REQUEST_TYPE:
@@ -147,28 +145,45 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
     case SET_REQUEST_TYPE:
         parseData( data, &m_children );
         return;
-    case COUNTER_TYPE:
     case TIME_TICKS_TYPE:
         m_data.reserve( sizeof( int64_t ) );
         m_data.append( m_data.capacity() - data.size(), 0 );
         m_data.append( data.right( m_data.capacity() ) );
+        m_data.detach();
         return;
     default: break;
     }
 
     m_data.append( data );
+    m_data.detach();
 }
 
 bool QtSnmpData::isValid() const {
     switch ( m_type ) {
     case INTEGER_TYPE:
     case GAUGE_TYPE:
+    case COUNTER_TYPE:
+        if ( 1 == m_data.size() ) {
+            return true;
+        } else if ( m_data.size() > 1 ) {
+            if ( ( static_cast< char >( 0xFF ) == m_data.at( 0 ) ) &&
+                 ( static_cast< char >( 0x80 ) & m_data.at( 1 ) ) )
+            {
+                return false;
+            }
+
+            if ( ( 0 == m_data.at( 0 ) ) &&
+                 ( static_cast< char >( 0x80 ) & ~m_data.at( 1 ) ) )
+            {
+                return false;
+            }
+
+            return true;
+        }
+        return false;
     case IP_ADDR_TYPE:
-        // return sizeof( qint32 ) == static_cast< unsigned >( m_data.size() );
         return 4 == m_data.size();
     case TIME_TICKS_TYPE:
-    case COUNTER_TYPE:
-        // return sizeof( quint64 ) == static_cast< unsigned >( m_data.size() );
         return 8 == m_data.size();
     case NULL_DATA_TYPE:
     case SEQUENCE_TYPE:
@@ -176,7 +191,6 @@ bool QtSnmpData::isValid() const {
     case GET_NEXT_REQUEST_TYPE:
     case GET_RESPONSE_TYPE:
     case SET_REQUEST_TYPE:
-        // return m_data.isEmpty();
         return 0 == m_data.size();
     case OBJECT_TYPE:
     case STRING_TYPE:
@@ -239,18 +253,35 @@ unsigned int QtSnmpData::uintValue() const {
 
 qint64 QtSnmpData::longLongValue() const {
     switch ( m_type ) {
-    case TIME_TICKS_TYPE:
-    case COUNTER_TYPE: {
+    case TIME_TICKS_TYPE: {
             int64_t val;
             memcpy( &val, m_data.constData(), 8 );
             return  swapBytes( val );
         }
-    case IP_ADDR_TYPE:
-    case GAUGE_TYPE:
-    case INTEGER_TYPE: {
+    case IP_ADDR_TYPE: {
             int32_t val;
             memcpy( &val, m_data.constData(), 4 );
             return  swapBytes( val );
+        }
+    case GAUGE_TYPE:
+    case COUNTER_TYPE:
+    case INTEGER_TYPE: {
+            const bool is_negative = m_data.at( 0 ) & 0x80;
+            QByteArray buf;
+            buf.reserve( 8 );
+            for ( int i = 0; i < m_data.size(); ++i ) {
+                buf.prepend( m_data.at( i ) );
+            }
+
+            while ( buf.size() < 8 ) {
+                buf.append(  is_negative ? static_cast< char >( 0xFF ) : 0 );
+            }
+            qint64 res = *(reinterpret_cast< qint64* >( buf.data() ));
+            return res;
+
+//            int32_t val;
+//            memcpy( &val, m_data.constData(), 4 );
+//            return  swapBytes( val );
         }
     default: break;
     }
@@ -310,7 +341,7 @@ QByteArray QtSnmpData::makeSnmpChunk() const {
             //   1 + additional byte if the first byte is less then 0x7f
             //   1 for data's size
             //   4 for type
-            chunk.reserve( qtsnmpclient::defragAllocationSizeForQByteArray( 14 ) );
+            chunk.reserve( 32 );
             Q_ASSERT( m_data.size() <= 8 );
             chunk.append( m_data );
             const auto first_byte = static_cast< quint8 >( chunk.at( 0 ) );
@@ -332,7 +363,7 @@ QByteArray QtSnmpData::makeSnmpChunk() const {
             QByteArray chunk;
             // NOTE: we don't know how much is needed exactly, but is
             //       it must fit into standard UDP datagram (512 bytes) at any case.
-            chunk.reserve( qtsnmpclient::defragAllocationSizeForQByteArray( 512 ) );
+            chunk.reserve( 512 );
 
             for ( const auto& child : m_children ) {
                 chunk.append( child.makeSnmpChunk() );
@@ -361,11 +392,26 @@ QVariant QtSnmpData::toVariant() const {
 }
 
 QtSnmpData QtSnmpData::integer( const int value ) { // static
-    QtSnmpData res;
-    res.m_type = INTEGER_TYPE;
-    const int32_t tmp = swapBytes( value );
-    res.m_data = QByteArray( reinterpret_cast< const char* >( &tmp ), 4 );
-    return res;
+    const int64_t tmp = swapBytes( static_cast< int64_t >( value ) );
+    QByteArray data( reinterpret_cast< const char* >( &tmp ), sizeof(tmp) );
+    for ( int i = 0; i < data.size() - 1; ++i ) {
+        switch ( data.at( i ) ) {
+        case static_cast< char >( 0xFF ):
+            if ( data.at( i + 1 ) & 0x80 ) {
+                continue;
+            }
+            return QtSnmpData( INTEGER_TYPE, data.mid( i ) );
+        case 0:
+            if ( ~data.at( i + 1 ) & 0x80 ) {
+                continue;
+            }
+            return QtSnmpData( INTEGER_TYPE, data.mid( i ) );
+        default:
+            return QtSnmpData( INTEGER_TYPE, data.mid( i ) );
+        }
+    }
+
+    return QtSnmpData( INTEGER_TYPE, data.right( 1 ) );
 }
 
 QtSnmpData QtSnmpData::null() { // static

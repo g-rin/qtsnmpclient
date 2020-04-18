@@ -3,7 +3,6 @@
 #include "RequestValuesJob.h"
 #include "RequestSubValuesJob.h"
 #include "SetValueJob.h"
-#include "utils.h"
 #include <QDateTime>
 #include <QHostAddress>
 #include <QThread>
@@ -346,7 +345,7 @@ void Session::onReadyRead() {
 
 
         QByteArray datagram;
-        datagram.reserve( defragAllocationSizeForQByteArray( size ) );
+        datagram.reserve( size );
         datagram.append( size, '\x0' );
         const auto read_size = m_socket.readDatagram( datagram.data(), size );
         if ( size != read_size ) {
@@ -415,16 +414,16 @@ void Session::processIncommingDatagram( const QByteArray& datagram ) {
         if ( response_req_id != m_request_id ) {
             QStringList history;
             for ( const auto item : m_request_history_queue ) {
-                history << QString::number( item );
+                history << "0x" + QString::number( item, 16 );
             }
 
             qDebug() << tr( "An invalid SNMP response has been received.\n" ) +
-                        tr( "Unexpected request id: %1 (expected %2 ) in a response from %3.\n"
+                        tr( "Unexpected request id: 0x%1 (expected 0x%2 ) in a response from %3.\n"
                             "History (request id list): %4" )
-                            .arg( response_req_id )
-                            .arg( m_request_id )
-                            .arg( m_agent_address.toString() )
-                            .arg( history.join( ", " ) );
+                            .arg( QString::number( response_req_id, 16 ),
+                                  QString::number( m_request_id, 16 ),
+                                  m_agent_address.toString(),
+                                  history.join( ", " ) );
             continue;
         }
 
