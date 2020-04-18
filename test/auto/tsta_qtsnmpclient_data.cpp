@@ -97,6 +97,11 @@ private slots:
         checkIntData( 1, 1 );
         checkIntData( -1, -1 );
 
+        checkIntData( -128, -128 );
+        checkIntData( -129, -129 );
+        checkIntData( -4, -4 );
+        checkIntData( 252, 252 );
+
         checkIntData( 89478486, 89478486 );
         checkIntData( 178956971, 178956971 );
 
@@ -105,6 +110,51 @@ private slots:
 
         checkIntData( 0x7FFFFFFF, 0x7FFFFFFF );
         checkIntData( static_cast< qint32 >( 0xFFFFFFFF ), -1 );
+    }
+
+    void testIntIsValid() {
+        auto checkIntIsValid = []( const int type,
+                                   const QByteArray& data_hex_value,
+                                   const bool expected_valid,
+                                   const qint64 expected_value ) -> bool
+        {
+            QtSnmpData data( type, QByteArray::fromHex( data_hex_value ) );
+            bool res = true;
+            if ( expected_valid != data.isValid() ) {
+                qDebug() << "Error: isValid() returns " << data.isValid() << " (expected " << expected_valid << ")";
+                res = false;
+            }
+
+            if ( data.isValid() && ( expected_value != data.intValue() ) ) {
+                qDebug() << "Error: intValue() returns " << data.intValue() << " (expected " << expected_value << ")";
+                res = false;
+            }
+
+            return res;
+        };
+
+        // valid negative number
+        QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "FC", true, -4 ) );
+
+        // invalid - first 9 bits is set to 1
+        QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "FFFC", false, -4 ) );
+
+        // valid positive number - only 8 first bits is set to 0
+        QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "00FC", true, 252 ) );
+
+        // invalid - first 9 bits is set to 9
+        QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "007C", false, 252 ) );
+
+        // valid - the same number but there is no 9 first bits is set to 0
+        QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "7C", false, 252 ) );
+    }
+
+    void testDataCorruption() {
+        QByteArray origin_data = QByteArray::fromHex( "00FC" );
+        const QtSnmpData snmp_data( QtSnmpData::INTEGER_TYPE, origin_data );
+        QCOMPARE( snmp_data.intValue(), 252 );
+        origin_data.data()[1] = 0x7C;
+        QCOMPARE( snmp_data.intValue(), 252 );
     }
 
     void testNullData() {
@@ -169,6 +219,56 @@ private slots:
         std::vector< QtSnmpData> result_list;
         QtSnmpData::parseData( data, &result_list );
         QCOMPARE( result_list, original_list );
+    }
+
+    void testParseData3() {
+        const auto data = QByteArray::fromHex( "303302010104067075626c6963a22602"
+                                               "044b77e2ca0201000201003018301606"
+                                               "112b060104010b020e0b050137010101"
+                                               "04010201fc" );
+        std::vector< QtSnmpData> result_list;
+        QtSnmpData::parseData( data, &result_list );
+        QVERIFY( result_list.size() == 1 );
+        auto root = result_list.at( 0 );
+        QVERIFY( root.type() == QtSnmpData::SEQUENCE_TYPE );
+        QVERIFY( root.children().size() == 3 );
+        auto version_data = root.children().at( 0 );
+        QVERIFY( version_data.type() == QtSnmpData::INTEGER_TYPE );
+        QVERIFY( version_data.intValue() == 1 );
+        QVERIFY( version_data.children().empty() );
+        auto community_data = root.children().at( 1 );
+        QVERIFY( community_data.type() == QtSnmpData::STRING_TYPE );
+        QVERIFY( community_data.textValue() == "public" );
+        QVERIFY( community_data.children().empty() );
+        auto response_data = root.children().at( 2 );
+        QVERIFY( response_data.type() == QtSnmpData::GET_RESPONSE_TYPE );
+        QVERIFY( response_data.children().size() == 4 );
+        auto request_data = response_data.children().at( 0 );
+        QVERIFY( request_data.type() == QtSnmpData::INTEGER_TYPE );
+        QVERIFY( request_data.intValue() == 0x4b77E2CA );
+        QVERIFY( request_data.children().empty() );
+        auto error_state_data = response_data.children().at( 1 );
+        QVERIFY( error_state_data.type() == QtSnmpData::INTEGER_TYPE );
+        QVERIFY( error_state_data.intValue() == 0 );
+        QVERIFY( error_state_data.children().empty() );
+        auto error_index_data = response_data.children().at( 2 );
+        QVERIFY( error_index_data.type() == QtSnmpData::INTEGER_TYPE );
+        QVERIFY( error_index_data.intValue() == 0 );
+        QVERIFY( error_index_data.children().empty() );
+        auto var_list_data = response_data.children().at( 3 );
+        QVERIFY( var_list_data.type() == QtSnmpData::SEQUENCE_TYPE );
+        QVERIFY( var_list_data.children().size() == 1 );
+        auto bindings_data = var_list_data.children().at( 0 );
+        QVERIFY( bindings_data.type() == QtSnmpData::SEQUENCE_TYPE );
+        QVERIFY( bindings_data.children().size() == 2 );
+        auto address_data = bindings_data.children().at( 0 );
+        QVERIFY( address_data.type() == QtSnmpData::OBJECT_TYPE );
+        QCOMPARE( address_data.data().data(), ".1.3.6.1.4.1.11.2.14.11.5.1.55.1.1.1.4.1" );
+        QVERIFY( error_index_data.children().empty() );
+        auto variable_data = bindings_data.children().at( 1 );
+        QVERIFY( variable_data.type() == QtSnmpData::INTEGER_TYPE );
+        QVERIFY( variable_data.children().empty() );
+        QCOMPARE( variable_data.intValue(), -4 );
     }
 
     void testSetRequestMessageSerialization() {
