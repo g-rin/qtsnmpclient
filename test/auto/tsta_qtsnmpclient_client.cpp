@@ -224,29 +224,32 @@ class TestQtSnmpClient : public QObject {
         m_received_response_list.clear();
     }
 
+public slots:
+    void onReadyRead() {
+        while ( m_socket->hasPendingDatagrams() ) {
+            ++m_request_count;
+            const int size = static_cast< int >( m_socket->pendingDatagramSize() );
+            const int max_datagram_size = 65507;
+            QVERIFY(size > 0);
+            QVERIFY( size <= max_datagram_size );
+            QByteArray datagram;
+            datagram.resize( size );
+            const auto read_size = m_socket->readDatagram( datagram.data(),
+                                                           size,
+                                                           &m_client_address,
+                                                           &m_client_port );
+            QCOMPARE( size, read_size );
+            std::vector< QtSnmpData > list;
+            QtSnmpData::parseData( datagram, &list );
+            for ( const auto& item : list ) {
+                m_received_request_data_list.push_back( item );
+            }
+        }
+    }
+
 private slots:
     void initTestCase() {
-        QVERIFY( connect( m_socket.data(), &QUdpSocket::readyRead, [this]() {
-            while ( m_socket->hasPendingDatagrams() ) {
-                ++m_request_count;
-                const int size = static_cast< int >( m_socket->pendingDatagramSize() );
-                const int max_datagram_size = 65507;
-                QVERIFY(size > 0);
-                QVERIFY( size <= max_datagram_size );
-                QByteArray datagram;
-                datagram.resize( size );
-                const auto read_size = m_socket->readDatagram( datagram.data(),
-                                                               size,
-                                                               &m_client_address,
-                                                               &m_client_port );
-                QCOMPARE( size, read_size );
-                std::vector< QtSnmpData > list;
-                QtSnmpData::parseData( datagram, &list );
-                for ( const auto& item : list ) {
-                    m_received_request_data_list.push_back( item );
-                }
-            }
-        }) );
+        QVERIFY( connect( m_socket.data(), SIGNAL(readyRead()), SLOT(onReadyRead()) ) );
         QVERIFY( m_socket->bind( QHostAddress::LocalHost, TestPort ) );
 
         QtSnmpClient client;
