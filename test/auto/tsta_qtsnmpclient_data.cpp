@@ -146,7 +146,7 @@ private slots:
         QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "007C", false, 252 ) );
 
         // valid - the same number but there is no 9 first bits is set to 0
-        QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "7C", false, 252 ) );
+        QVERIFY( checkIntIsValid( QtSnmpData::INTEGER_TYPE, "7C", true, 124 ) );
     }
 
     void testDataCorruption() {
