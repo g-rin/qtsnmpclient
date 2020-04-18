@@ -101,6 +101,10 @@ namespace {
 QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
     : m_type( type )
 {
+    // NOTE: I can't reproduce the memory corruption bug in the data's test
+    //       But it's reliable reproduced by the client's test.
+    //       To fix the bug we have to hard copy the data by calling QByteArray::detach().
+
     switch ( m_type ) {
     case INTEGER_TYPE:
     case GAUGE_TYPE:

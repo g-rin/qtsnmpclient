@@ -150,11 +150,13 @@ private slots:
     }
 
     void testDataCorruption() {
-        QByteArray origin_data = QByteArray::fromHex( "00FC" );
-        const QtSnmpData snmp_data( QtSnmpData::INTEGER_TYPE, origin_data );
-        QCOMPARE( snmp_data.intValue(), 252 );
-        origin_data.data()[1] = 0x7C;
-        QCOMPARE( snmp_data.intValue(), 252 );
+        uint16_t data = 0x1C80;
+        QByteArray proxy_data( reinterpret_cast< char* >( &data ), 2 );
+        proxy_data.prepend( 2 );
+        const QtSnmpData snmp_data( QtSnmpData::INTEGER_TYPE, proxy_data.mid( 1 ) );
+        QCOMPARE( snmp_data.intValue(), -32740 );
+        data = 0x1C7F;
+        QCOMPARE( snmp_data.intValue(), -32740 );
     }
 
     void testNullData() {
