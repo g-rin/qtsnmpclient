@@ -167,6 +167,10 @@ bool QtSnmpData::isValid() const {
     case INTEGER_TYPE:
     case GAUGE_TYPE:
     case COUNTER_TYPE:
+        // NOTE: according to BER (Basic Encoding Rules for ASN.1)
+        //       a valid coded integer could not have all of the first 9 bits
+        //       are set to the same value.
+
         if ( 1 == m_data.size() ) {
             return true;
         } else if ( m_data.size() > 1 ) {
@@ -270,6 +274,13 @@ qint64 QtSnmpData::longLongValue() const {
     case GAUGE_TYPE:
     case COUNTER_TYPE:
     case INTEGER_TYPE: {
+
+        // NOTE: According to BER (Basic Encoding Rules for ASN.1)
+        //       a negative number has the first bit is set to 1 ( -4 as 0xFC ).
+        //       The analogous code positive number has 'zero' (0x00)
+        //       before the most significant byte if it has 1 at the most
+        //       significant byte ( 252 as 0x00FC )
+
             const bool is_negative = m_data.at( 0 ) & 0x80;
             QByteArray buf;
             buf.reserve( 8 );
@@ -282,10 +293,6 @@ qint64 QtSnmpData::longLongValue() const {
             }
             qint64 res = *(reinterpret_cast< qint64* >( buf.data() ));
             return res;
-
-//            int32_t val;
-//            memcpy( &val, m_data.constData(), 4 );
-//            return  swapBytes( val );
         }
     default: break;
     }
@@ -396,6 +403,14 @@ QVariant QtSnmpData::toVariant() const {
 }
 
 QtSnmpData QtSnmpData::integer( const int value ) { // static
+    // NOTE: According to BER (Basic Encoding Rules for ASN.1)
+    //       a negative number must has the first bit is set to 1 ( -4 as 0xFC ).
+    //       The analogous code positive number must has 'zero' (0x00)
+    //       before the most significant byte if it has 1 at the most
+    //       significant byte ( 252 as 0x00FC ).
+    //       Also redundant bytes (consequantly leading 0x00 for positive number,
+    //       or consequantly leading 0xFF for negative number) shall be truncated.
+
     const int64_t tmp = swapBytes( static_cast< int64_t >( value ) );
     QByteArray data( reinterpret_cast< const char* >( &tmp ), sizeof(tmp) );
     for ( int i = 0; i < data.size() - 1; ++i ) {
