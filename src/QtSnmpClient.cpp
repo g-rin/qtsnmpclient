@@ -8,7 +8,10 @@ QtSnmpClient::QtSnmpClient( QObject*const parent )
     : QObject( parent )
     , m_session( new qtsnmpclient::Session( this ) )
 {
-    qRegisterMetaType< QtSnmpDataList >();
+    static std::atomic_bool once{true};
+    if ( once.exchange( false ) ) {
+        qRegisterMetaType< QtSnmpDataList >();
+    }
 
     connect( m_session, SIGNAL(responseReceived(qint32,QtSnmpDataList)),
              this, SIGNAL(responseReceived(qint32,QtSnmpDataList)) );
