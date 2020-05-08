@@ -98,22 +98,10 @@ namespace {
     }
 }
 
-QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
+QtSnmpData::QtSnmpData( const int type, const QByteArray data )
     : m_type( type )
 {
-    // NOTE: I can't reproduce the memory corruption bug in the data's test
-    //       But it's reliable reproduced by the client's test.
-    //       To fix the bug we have to hard copy the data by calling QByteArray::detach().
-
     switch ( m_type ) {
-    case INTEGER_TYPE:
-    case GAUGE_TYPE:
-    case COUNTER_TYPE:
-        m_data = data;
-        m_data.detach();
-        return;
-    case NULL_DATA_TYPE:
-        break;
     case OBJECT_TYPE:
         Q_ASSERT( data.size() > 0 );
         m_data.reserve( 2*data.size() );
@@ -140,7 +128,6 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
             m_data.append( "." + QByteArray::number( cur_val ) );
         }
         m_data.squeeze();
-        m_data.detach();
         return;
     case SEQUENCE_TYPE:
     case GET_REQUEST_TYPE:
@@ -153,13 +140,11 @@ QtSnmpData::QtSnmpData( const int type, const QByteArray& data )
         m_data.reserve( sizeof( int64_t ) );
         m_data.append( m_data.capacity() - data.size(), 0 );
         m_data.append( data.right( m_data.capacity() ) );
-        m_data.detach();
         return;
     default: break;
     }
 
     m_data.append( data );
-    m_data.detach();
 }
 
 bool QtSnmpData::isValid() const {
@@ -168,8 +153,8 @@ bool QtSnmpData::isValid() const {
     case GAUGE_TYPE:
     case COUNTER_TYPE:
         // NOTE: according to BER (Basic Encoding Rules for ASN.1)
-        //       a valid coded integer could not have all of the first 9 bits
-        //       are set to the same value.
+        //       a correctly encoded integer could not have all
+        //       of the first 9 bits are set to the same value.
 
         if ( 1 == m_data.size() ) {
             return true;

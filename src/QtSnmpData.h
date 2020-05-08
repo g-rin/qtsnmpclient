@@ -44,7 +44,7 @@ public:
     QtSnmpData() = default;
     QtSnmpData( const QtSnmpData& ) = default;
     QtSnmpData& operator=( const QtSnmpData& ) = default;
-    QtSnmpData( const int type, const QByteArray& data = QByteArray() );
+    QtSnmpData( const int type, const QByteArray data = {} );
 
     int type() const;
     QString typeDescription() const;
