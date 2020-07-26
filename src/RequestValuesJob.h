@@ -10,12 +10,20 @@ class RequestValuesJob : public AbstractJob {
 public:
     explicit RequestValuesJob( Session*const,
                                const qint32 id,
-                               const QStringList& oid_list );
+                               const QStringList& oid_list,
+                               const int limit );
     virtual void start() override final;
     virtual QString description() const override final;
+    virtual void processData( const QtSnmpDataList&,
+                              const QList< ErrorResponse >& ) override final;
+private:
+    void makeRequest();
 
 private:
-    const QStringList m_list;
+    const QString m_description;
+    QStringList m_requests;
+    QtSnmpDataList m_results;
+    const int m_limit = 10;
 };
 
 } // namespace qtsnmpclient
