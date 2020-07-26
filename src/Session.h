@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QHostAddress>
 #include <QQueue>
+#include <atomic>
 #include "win_export.h"
 
 namespace qtsnmpclient {
@@ -37,6 +38,9 @@ public:
 
     int responseTimeout() const;
     void setResponseTimeout( const int );
+
+    int getRequestLimit() const;
+    void setGetRequestLimit( const int );
 
     bool isBusy() const;
 
@@ -91,6 +95,7 @@ private:
     SnmpJobList m_work_queue;
     JobPointer m_current_work;
     int m_timeout_cnt = 0;
+    std::atomic_int m_get_limit = {0};
 };
 
 } // namespace qtsnmpclient

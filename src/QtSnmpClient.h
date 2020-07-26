@@ -34,6 +34,9 @@ public:
     int responseTimeout() const;
     Q_SLOT void setReponseTimeout( const int );
 
+    int getRequestLimit() const;
+    Q_SLOT void setGetRequestLimit( const int );
+
     bool isBusy() const;
 
     qint32 requestValue( const QString& );

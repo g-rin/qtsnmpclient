@@ -123,13 +123,21 @@ void Session::setResponseTimeout( const int value ) {
     }
 }
 
+int Session::getRequestLimit() const {
+    return m_get_limit;
+}
+
+void Session::setGetRequestLimit( const int value ) {
+    m_get_limit.exchange( value );
+}
+
 bool Session::isBusy() const {
     return m_current_work || m_work_queue.size();
 }
 
 qint32 Session::requestValues( const QStringList& oid_list ) {
     const qint32 work_id = createWorkId();
-    addWork( std::make_shared< RequestValuesJob >( this, work_id, oid_list ) );
+    addWork( std::make_shared< RequestValuesJob >( this, work_id, oid_list, m_get_limit ) );
     return work_id;
 }
 

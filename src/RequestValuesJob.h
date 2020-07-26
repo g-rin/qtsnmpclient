@@ -23,7 +23,7 @@ private:
     const QString m_description;
     QStringList m_requests;
     QtSnmpDataList m_results;
-    const int m_limit = 10;
+    const int m_limit = 0;
 };
 
 } // namespace qtsnmpclient

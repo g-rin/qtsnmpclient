@@ -116,6 +116,14 @@ void QtSnmpClient::setReponseTimeout( const int value ) {
     m_session->setResponseTimeout( value );
 }
 
+int QtSnmpClient::getRequestLimit() const {
+    return m_session->getRequestLimit();
+}
+
+void QtSnmpClient::setGetRequestLimit( const int value ) {
+    m_session->setGetRequestLimit( value );
+}
+
 bool QtSnmpClient::isBusy() const {
     return m_session->isBusy();
 }
